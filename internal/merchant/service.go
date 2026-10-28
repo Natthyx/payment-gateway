@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/Natthyx/payment-gateway/internal/models"
 )
@@ -56,6 +57,10 @@ type Service struct {
 	authCacheTTL time.Duration
 	authMu       sync.Mutex
 	authCache    map[[32]byte]authCacheEntry
+	// authFlight collapses concurrent cache misses for the same key into one
+	// bcrypt; without it a burst on a cold or just-expired entry runs one
+	// bcrypt per request.
+	authFlight singleflight.Group
 }
 
 type authCacheEntry struct {
@@ -126,6 +131,18 @@ func (s *Service) Authenticate(ctx context.Context, apiKey string) (*models.Merc
 	}
 	s.authMu.Unlock()
 
+	v, err, _ := s.authFlight.Do(string(cacheKey[:]), func() (interface{}, error) {
+		return s.authenticate(ctx, apiKey, cacheKey)
+	})
+	if err != nil {
+		return nil, err
+	}
+	m := *v.(*models.Merchant)
+	return &m, nil
+}
+
+// authenticate does the uncached check: one indexed lookup, one bcrypt.
+func (s *Service) authenticate(ctx context.Context, apiKey string, cacheKey [32]byte) (*models.Merchant, error) {
 	env, lookup, secret, err := parseKey(apiKey)
 	if err != nil {
 		return nil, ErrInvalidAPIKey
