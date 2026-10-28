@@ -93,7 +93,8 @@ func (s *RefundService) Create(
         VALUES ($1, $2, $3, $4, $5, $6, 'pending')
         ON CONFLICT (merchant_id, idempotency_key) DO UPDATE SET reason = refunds.reason
         RETURNING id, payment_intent_id, merchant_id, idempotency_key, amount, currency,
-                  reason, status, provider_refund_id, failure_reason, created_at, updated_at
+                  COALESCE(reason, ''), status, COALESCE(provider_refund_id, ''),
+                  COALESCE(failure_reason, ''), created_at, updated_at
     `, pi.ID, merchantID, req.IdempotencyKey, req.Amount, pi.Currency, req.Reason).Scan(
         &rf.ID, &rf.PaymentIntentID, &rf.MerchantID, &rf.IdempotencyKey, &rf.Amount,
         &rf.Currency, &rf.Reason, &rstatus, &rf.ProviderRefundID, &rf.FailureReason,
