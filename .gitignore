@@ -1,0 +1,22 @@
+.env
+.env.*
+!.env.example
+
+# Build artifacts
+/server
+/bin/
+/dist/
+*.exe
+
+# Coverage
+coverage.out
+coverage.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,93 @@
+graph TB
+    subgraph "Container: payment-gateway"
+        APP[Go Binary<br/>Multi-threaded<br/>Graceful Shutdown]
+        
+        subgraph "HTTP Server :8080"
+            ROUTES[Chi Router<br/>Middleware Stack]
+            HEALTH[/health]
+            METRICS[/metrics Prometheus]
+        end
+        
+        subgraph "Background Workers"
+            WH[Webhook Worker<br/>10s interval]
+            OUT[Outbound Worker<br/>5s interval]
+            REC[Reconciler<br/>5min interval]
+        end
+        
+        APP --> ROUTES
+        APP --> WH
+        APP --> OUT
+        APP --> REC
+    end
+    
+    subgraph "PostgreSQL 16"
+        PG[(Database<br/>Connection Pool<br/>Migrations Auto-Applied)]
+    end
+    
+    subgraph "Redis 7"
+        REDIS[(Cache<br/>Idempotency Store<br/>Rate Limit)]
+    end
+    
+    subgraph "External Services"
+        STRIPE_EXT[Stripe API<br/>api.stripe.com]
+        CHAPA_EXT[Chapa API]
+        TELEBIRR_EXT[Telebirr API]
+    end
+    
+    subgraph "Monitoring"
+        PROM[Prometheus<br/>Scrapes /metrics]
+        LOGS[Structured Logs<br/>JSON/Console]
+    end
+    
+    ROUTES --> PG
+    ROUTES --> REDIS
+    WH --> PG
+    OUT --> PG
+    REC --> PG
+    
+    ROUTES --> STRIPE_EXT
+    ROUTES --> CHAPA_EXT
+    ROUTES --> TELEBIRR_EXT
+    
+    STRIPE_EXT -.Webhooks.-> ROUTES
+    CHAPA_EXT -.Webhooks.-> ROUTES
+    TELEBIRR_EXT -.Webhooks.-> ROUTES
+    
+    APP --> LOGS
+    METRICS --> PROM
+    
+    subgraph "Docker Compose"
+        DC[docker-compose.yaml<br/>Local Development]
+        DC --> APP
+        DC --> PG
+        DC --> REDIS
+    end
+    
+    subgraph "Production Deployment"
+        K8S[Kubernetes Ready<br/>Stateless Design<br/>Horizontal Scaling]
+        LB[Load Balancer<br/>Multiple Instances]
+        
+        LB --> APP
+        LB --> APP
+        
+        K8S -.contains.-> LB
+    end
+    
+    subgraph "Configuration"
+        ENV[Environment Variables<br/>.env file<br/>Required:<br/>- DATABASE_URL<br/>- BASE_CALLBACK_URL<br/>- OUTBOUND_WEBHOOK_SIGNING_SECRET<br/>Optional:<br/>- STRIPE_SECRET_KEY<br/>- CHAPA_SECRET_KEY<br/>- TELEBIRR_*]
+        
+        ENV --> APP
+    end
+    
+    subgraph "CI/CD Pipeline"
+        GHA[GitHub Actions<br/>- gofmt<br/>- go vet<br/>- staticcheck<br/>- govulncheck<br/>- test -race<br/>- coverage<br/>- build binary]
+    end
+    
+    style APP fill:#d4edda
+    style PG fill:#e1f5ff
+    style REDIS fill:#ffe1e1
+    style WH fill:#fff3cd
+    style OUT fill:#fff3cd
+    style REC fill:#fff3cd
+    style PROM fill:#e7f3ff
+    style K8S fill:#cfe2ff

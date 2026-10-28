@@ -1,0 +1,50 @@
+stateDiagram-v2
+    [*] --> created: POST /payments<br/>with Idempotency-Key
+    
+    created --> processing: Provider responds<br/>with checkout URL
+    
+    processing --> succeeded: Webhook arrives<br/>signature verified
+    processing --> failed: Webhook: payment_failed<br/>OR provider timeout
+    processing --> succeeded: Reconciler detects<br/>provider success (15min+)
+    
+    succeeded --> refunded: POST /payments/{id}/refunds<br/>with Idempotency-Key
+    
+    succeeded --> [*]: Final state
+    failed --> [*]: Final state
+    refunded --> [*]: Final state
+    
+    note right of created
+        DB: payment_intents row
+        Status: created
+        Redis: idempotency cached
+    end note
+    
+    note right of processing
+        Provider: charge initiated
+        Checkout URL returned
+        User redirected to pay
+    end note
+    
+    note right of succeeded
+        Webhook verified (HMAC-SHA256)
+        Ledger entries created atomically:
+        - DEBIT provider
+        - CREDIT merchant (net of fee)
+        - CREDIT gateway:fees
+        
+        Merchant webhook enqueued
+    end note
+    
+    note right of failed
+        No ledger entries
+        No merchant webhook
+        Reason stored in DB
+    end note
+    
+    note right of refunded
+        Inverse ledger entries:
+        - DEBIT merchant
+        - CREDIT provider
+        
+        Partial refunds supported
+    end note

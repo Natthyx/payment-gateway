@@ -1,0 +1,47 @@
+graph TB
+    START[Payment Succeeded] --> ENQUEUE[Enqueue Outbound Event<br/>event_type: payment.succeeded]
+    
+    ENQUEUE --> FANOUT{Find Active<br/>Merchant Endpoints}
+    
+    FANOUT -->|For Each URL| INSERT[INSERT INTO<br/>outbound_webhook_deliveries<br/>status: pending<br/>next_attempt_at: NOW]
+    
+    INSERT --> QUEUE[(Delivery Queue<br/>PostgreSQL)]
+    
+    QUEUE --> WORKER{Delivery Worker<br/>Polls Every 5s}
+    
+    WORKER -->|SELECT FOR UPDATE<br/>SKIP LOCKED| CLAIM[Claim Due Delivery<br/>next_attempt_at <= NOW]
+    
+    CLAIM --> SIGN[Compute HMAC-SHA256<br/>secret + timestamp + body]
+    
+    SIGN --> POST[POST to Merchant URL<br/>X-Gateway-Signature: t=ts,v1=hmac<br/>Idempotency-Key: dlv_{id}<br/>Timeout: 10s]
+    
+    POST --> CHECK{HTTP Response}
+    
+    CHECK -->|2xx| SUCCESS[status: delivered<br/>delivered_at: NOW]
+    SUCCESS --> DONE[Done]
+    
+    CHECK -->|Non-2xx or Timeout| RETRY_CHECK{attempts < 8?}
+    
+    RETRY_CHECK -->|Yes| BACKOFF[Exponential Backoff<br/>base: 30s, max: 6h<br/>delay = 30s * 2^attempt]
+    
+    BACKOFF --> UPDATE_PENDING[status: pending<br/>next_attempt_at: NOW + delay<br/>last_error recorded]
+    
+    UPDATE_PENDING --> WAIT[Wait Until<br/>next_attempt_at]
+    WAIT --> WORKER
+    
+    RETRY_CHECK -->|No| DEAD[status: dead<br/>Dead Letter<br/>Alerts Triggered]
+    
+    DEAD --> MANUAL[Manual Investigation<br/>Required]
+    
+    style ENQUEUE fill:#d4edda
+    style WORKER fill:#fff3cd
+    style SIGN fill:#cfe2ff
+    style SUCCESS fill:#d4edda
+    style DEAD fill:#f8d7da
+    style BACKOFF fill:#ffe1e1
+    
+    Note1[Exponential Backoff Schedule:<br/>Attempt 1: 30s<br/>Attempt 2: 60s<br/>Attempt 3: 2m<br/>Attempt 4: 4m<br/>Attempt 5: 8m<br/>Attempt 6: 16m<br/>Attempt 7: 32m<br/>Attempt 8: 64m → capped at 6h<br/><br/>After 8 attempts: dead letter]
+    
+    Note2[Merchant Verification:<br/>1. Parse X-Gateway-Signature<br/>2. Extract timestamp and v1 signature<br/>3. Compute HMAC-SHA256 of:<br/>   timestamp + "." + request_body<br/>4. Compare with v1 in constant time<br/>5. Check timestamp within 5min window]
+    
+    Note3[Idempotency Guarantee:<br/>Idempotency-Key header ensures<br/>merchant can safely process<br/>duplicate deliveries.<br/><br/>Merchant should cache by key<br/>and return 2xx for replays.]

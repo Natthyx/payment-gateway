@@ -1,0 +1,93 @@
+graph TB
+    subgraph "Client Layer"
+        C[Merchant Application]
+    end
+    
+    subgraph "API Gateway - Go/Chi"
+        API[HTTP API :8080]
+        AUTH[API Key Auth<br/>O(1) bcrypt]
+        RATE[Rate Limiter<br/>Redis]
+    end
+    
+    subgraph "Core Services"
+        PAY[Payment Service<br/>Idempotency + Provider]
+        REFUND[Refund Service]
+        WEBHOOK[Webhook Service<br/>Inbox Pattern]
+        LEDGER[Ledger Service<br/>Double-Entry]
+        OUTBOUND[Outbound Service<br/>Merchant Webhooks]
+        RECON[Reconciler<br/>15min stale detection]
+    end
+    
+    subgraph "Provider Abstraction"
+        REGISTRY[Provider Registry]
+        STRIPE[Stripe Client<br/>HMAC-SHA256]
+        CHAPA[Chapa Client]
+        TELEBIRR[Telebirr Client]
+    end
+    
+    subgraph "Data Layer"
+        PG[(PostgreSQL<br/>Transactions + Locks)]
+        REDIS[(Redis<br/>Idempotency Cache)]
+    end
+    
+    subgraph "Background Workers"
+        WH_WORKER[Webhook Worker<br/>SELECT FOR UPDATE<br/>SKIP LOCKED]
+        OUT_WORKER[Delivery Worker<br/>Exponential Backoff]
+        RECON_WORKER[Reconciliation Worker<br/>5min interval]
+    end
+    
+    subgraph "External"
+        STRIPE_API[Stripe API]
+        CHAPA_API[Chapa API]
+        TELEBIRR_API[Telebirr API]
+        MERCHANT[Merchant Webhook<br/>HMAC-SHA256 Signed]
+    end
+    
+    C -->|Bearer gw_live_*| API
+    API --> AUTH
+    AUTH --> RATE
+    RATE --> PAY
+    RATE --> REFUND
+    
+    PAY --> REGISTRY
+    PAY --> LEDGER
+    PAY --> REDIS
+    
+    REGISTRY --> STRIPE
+    REGISTRY --> CHAPA
+    REGISTRY --> TELEBIRR
+    
+    STRIPE -->|HTTP POST| STRIPE_API
+    CHAPA -->|HTTP POST| CHAPA_API
+    TELEBIRR -->|HTTP POST| TELEBIRR_API
+    
+    STRIPE_API -->|Webhook| WEBHOOK
+    CHAPA_API -->|Webhook| WEBHOOK
+    TELEBIRR_API -->|Webhook| WEBHOOK
+    
+    WEBHOOK -->|Store Raw| PG
+    WH_WORKER -->|Poll + Lock| PG
+    WH_WORKER -->|Verify Signature| STRIPE
+    WH_WORKER -->|Update Status| PG
+    WH_WORKER -->|Record Payment| LEDGER
+    WH_WORKER -->|Enqueue| OUTBOUND
+    
+    LEDGER -->|Atomic Insert| PG
+    OUTBOUND -->|Queue| PG
+    OUT_WORKER -->|Poll + Lock| PG
+    OUT_WORKER -->|HMAC + Retry| MERCHANT
+    
+    RECON_WORKER -->|Find Stale| PG
+    RECON_WORKER -->|GetTransaction| REGISTRY
+    RECON_WORKER -->|Correct State| PG
+    
+    PAY --> PG
+    REFUND --> PG
+    REDIS -.->|24h TTL| PAY
+
+    style PG fill:#e1f5ff
+    style REDIS fill:#ffe1e1
+    style LEDGER fill:#d4edda
+    style WH_WORKER fill:#fff3cd
+    style OUT_WORKER fill:#fff3cd
+    style RECON_WORKER fill:#fff3cd

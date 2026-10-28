@@ -1,0 +1,340 @@
+openapi: 3.0.3
+info:
+  title: Payment Gateway API
+  version: "1.0.0"
+  description: |
+    Multi-provider payment orchestration. Stripe / Chapa / Telebirr.
+    All authenticated endpoints require a Bearer API key of the form
+    `gw_<env>_<lookup>_<secret>`.
+servers:
+  - url: http://localhost:8080
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      schema: { type: string, maxLength: 255 }
+      description: Required for mutating requests. Same key + same body = same response.
+  schemas:
+    APIError:
+      type: object
+      properties:
+        success: { type: boolean, enum: [false] }
+        error_obj:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - invalid_request
+                - unauthorized
+                - forbidden
+                - not_found
+                - conflict
+                - idempotency_conflict
+                - rate_limit_exceeded
+                - provider_error
+                - internal_error
+            message: { type: string }
+            details: { type: object, additionalProperties: true }
+    Merchant:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        email: { type: string, format: email }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CreateMerchantRequest:
+      type: object
+      required: [name, email]
+      properties:
+        name: { type: string }
+        email: { type: string, format: email }
+    CreateMerchantResponse:
+      type: object
+      properties:
+        merchant: { $ref: '#/components/schemas/Merchant' }
+        api_key:
+          type: string
+          description: Plaintext API key. Shown ONCE. Store securely.
+    PaymentIntent:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        merchant_id: { type: integer, format: int64 }
+        idempotency_key: { type: string }
+        amount: { type: integer, format: int64, description: smallest currency unit }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        provider: { type: string, enum: [stripe, chapa, telebirr] }
+        status:
+          type: string
+          enum: [created, processing, succeeded, failed, refunded]
+        provider_tx_id: { type: string }
+        failure_reason: { type: string }
+        metadata: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CreatePaymentIntentRequest:
+      type: object
+      required: [amount, currency, provider, idempotency_key]
+      properties:
+        amount: { type: integer, format: int64, minimum: 50 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        provider: { type: string, enum: [stripe, chapa, telebirr] }
+        idempotency_key: { type: string }
+        metadata: { type: object, additionalProperties: true }
+    CreatePaymentIntentResponse:
+      type: object
+      properties:
+        payment_intent: { $ref: '#/components/schemas/PaymentIntent' }
+        checkout_url: { type: string, format: uri }
+    Refund:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        payment_intent_id: { type: integer, format: int64 }
+        amount: { type: integer, format: int64 }
+        currency: { type: string }
+        status:
+          type: string
+          enum: [pending, succeeded, failed]
+        provider_refund_id: { type: string }
+        reason: { type: string }
+        failure_reason: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CreateRefundRequest:
+      type: object
+      required: [idempotency_key]
+      properties:
+        amount: { type: integer, format: int64, description: omit or 0 for full refund }
+        reason: { type: string }
+        idempotency_key: { type: string }
+    WebhookEndpoint:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        url: { type: string, format: uri }
+        is_active: { type: boolean }
+        created_at: { type: string }
+    CreateWebhookEndpointRequest:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string, format: uri, description: must be https }
+
+paths:
+  /health:
+    get:
+      security: []
+      summary: Liveness probe.
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  service: { type: string }
+  /metrics:
+    get:
+      security: []
+      summary: Prometheus metrics (text/plain; charset=utf-8).
+      responses:
+        '200': { description: prometheus exposition format }
+
+  /merchants:
+    post:
+      security: []
+      summary: Create a merchant.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateMerchantRequest' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateMerchantResponse' }
+
+  /merchants/me:
+    get:
+      summary: Current authenticated merchant.
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Merchant' }
+
+  /merchants/me/regenerate-key:
+    post:
+      summary: Rotate the API key (old key is immediately invalidated).
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_key: { type: string }
+                  message: { type: string }
+
+  /payments:
+    post:
+      summary: Create a payment intent.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePaymentIntentRequest' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreatePaymentIntentResponse' }
+        '409': { description: idempotency conflict, content: { application/json: { schema: { $ref: '#/components/schemas/APIError' }}}}
+        '400': { description: invalid request, content: { application/json: { schema: { $ref: '#/components/schemas/APIError' }}}}
+        '502': { description: provider error, content: { application/json: { schema: { $ref: '#/components/schemas/APIError' }}}}
+    get:
+      summary: List payment intents.
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/PaymentIntent' }
+                  meta:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      page: { type: integer }
+                      limit: { type: integer }
+
+  /payments/{id}:
+    get:
+      summary: Retrieve a payment intent.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentIntent' }
+        '404': { description: not found, content: { application/json: { schema: { $ref: '#/components/schemas/APIError' }}}}
+
+  /payments/{id}/ledger:
+    get:
+      summary: Ledger entries for a payment intent.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200': { description: ok }
+
+  /payments/{id}/refunds:
+    post:
+      summary: Refund a payment (full or partial).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, format: int64 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRefundRequest' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Refund' }
+
+  /webhook-endpoints:
+    post:
+      summary: Register a URL to receive signed webhook events.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateWebhookEndpointRequest' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookEndpoint' }
+    get:
+      summary: List registered webhook endpoints.
+      responses:
+        '200':
+          description: ok
+
+  /webhook-endpoints/{id}:
+    delete:
+      summary: Deactivate a webhook endpoint.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '204': { description: deleted }
+        '404': { description: not found }
+
+  /webhooks/stripe:
+    post:
+      security: []
+      summary: Inbound Stripe webhook (signature verified internally).
+      responses: { '200': { description: ack } }
+  /webhooks/chapa:
+    post:
+      security: []
+      summary: Inbound Chapa webhook.
+      responses: { '200': { description: ack } }
+  /webhooks/telebirr:
+    post:
+      security: []
+      summary: Inbound Telebirr webhook.
+      responses: { '200': { description: ack } }

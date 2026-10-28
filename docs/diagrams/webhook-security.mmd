@@ -1,0 +1,71 @@
+sequenceDiagram
+    participant Provider as Stripe/Chapa/Telebirr
+    participant Endpoint as POST /webhooks/{provider}
+    participant Inbox as Webhook Inbox Table
+    participant Worker as Background Worker
+    participant Verifier as Provider Client<br/>(HMAC-SHA256)
+    participant DB as Payment Intent + Ledger
+    participant Merchant as Merchant Webhook
+    
+    Note over Provider,Merchant: PHASE 1: RECEIVE (Fast, Never Fail)
+    
+    Provider->>+Endpoint: POST /webhooks/stripe<br/>Header: Stripe-Signature<br/>Body: {event}
+    
+    Endpoint->>Endpoint: Extract provider_event_id<br/>(Stripe: event.id)
+    
+    Endpoint->>+Inbox: INSERT INTO webhooks<br/>(provider, provider_event_id, payload, signature)<br/>ON CONFLICT DO NOTHING
+    
+    alt First Delivery
+        Inbox-->>Endpoint: Row inserted
+        Endpoint-->>-Provider: 200 OK (fast ACK)
+    else Duplicate Delivery
+        Inbox-->>Endpoint: No row (conflict on provider_event_id)
+        Endpoint-->>-Provider: 200 OK (duplicate swallowed)
+    end
+    
+    Note over Provider,Merchant: PHASE 2: PROCESS (Async, Transactional)
+    
+    loop Every 10 seconds
+        Worker->>+Inbox: SELECT * FROM webhooks<br/>WHERE status = 'pending'<br/>FOR UPDATE SKIP LOCKED<br/>LIMIT 1
+        Inbox-->>-Worker: webhook row (locked)
+        
+        Worker->>+Verifier: VerifyWebhook(payload, signature)
+        
+        alt Valid Signature
+            Verifier->>Verifier: Parse t=timestamp,v1=hmac
+            Verifier->>Verifier: Compute HMAC-SHA256<br/>(secret, timestamp + "." + payload)
+            Verifier->>Verifier: Constant-time compare
+            Verifier->>Verifier: Check timestamp skew < 5min<br/>(replay protection)
+            Verifier-->>Worker: ✓ Verified event
+            
+            Worker->>+DB: BEGIN TRANSACTION
+            Worker->>DB: UPDATE payment_intents<br/>SET status = 'succeeded'<br/>WHERE provider_tx_id = $1<br/>AND status NOT IN ('succeeded','refunded')
+            
+            alt Payment Transitioned
+                Worker->>DB: INSERT INTO ledger_entries<br/>(3 rows: debit provider, credit merchant, credit fees)<br/>Validate SUM(amount) = 0
+                Worker->>DB: COMMIT
+                DB-->>-Worker: Success
+                Worker->>Inbox: UPDATE webhooks SET status = 'processed'
+                
+                Worker->>+Merchant: Enqueue outbound webhook<br/>event_type: payment.succeeded
+                Merchant-->>-Worker: Queued
+                
+            else Already Succeeded
+                Worker->>DB: ROLLBACK (no-op)
+                DB-->>-Worker: Idempotent
+                Worker->>Inbox: UPDATE webhooks SET status = 'processed'
+            end
+            
+        else Invalid Signature
+            Verifier-->>-Worker: ✗ Verification failed
+            Worker->>Inbox: INCREMENT attempts<br/>SET last_error = 'signature mismatch'
+            
+            alt attempts < 5
+                Worker->>Inbox: Keep status = 'pending'<br/>(retry later)
+            else attempts >= 5
+                Worker->>Inbox: SET status = 'failed'<br/>(dead letter)
+            end
+        end
+    end
+    
+    Note over Provider,Merchant: Security Guarantees:<br/>1. HMAC-SHA256 signature verification<br/>2. Timestamp-based replay protection (5min window)<br/>3. Constant-time signature comparison<br/>4. Provider event ID deduplication<br/>5. Atomic DB transactions (status + ledger together)

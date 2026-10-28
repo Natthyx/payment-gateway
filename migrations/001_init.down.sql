@@ -1,0 +1,10 @@
+DROP TRIGGER IF EXISTS trg_pi_updated_at ON payment_intents;
+DROP TRIGGER IF EXISTS trg_merchants_updated_at ON merchants;
+DROP FUNCTION IF EXISTS set_updated_at();
+DROP TRIGGER IF EXISTS trg_no_delete_ledger ON ledger_entries;
+DROP TRIGGER IF EXISTS trg_no_update_ledger ON ledger_entries;
+DROP FUNCTION IF EXISTS prevent_ledger_modification();
+DROP TABLE IF EXISTS webhooks;
+DROP TABLE IF EXISTS ledger_entries;
+DROP TABLE IF EXISTS payment_intents;
+DROP TABLE IF EXISTS merchants;

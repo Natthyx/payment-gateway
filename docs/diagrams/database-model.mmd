@@ -1,0 +1,114 @@
+erDiagram
+    merchants ||--o{ payment_intents : creates
+    merchants ||--o{ refunds : requests
+    merchants ||--o{ merchant_webhook_endpoints : configures
+    merchants ||--o{ audit_log : generates
+    
+    payment_intents ||--o{ ledger_entries : produces
+    payment_intents ||--o{ refunds : can_have
+    payment_intents ||--o{ webhooks : triggers
+    
+    merchant_webhook_endpoints ||--o{ outbound_webhook_deliveries : receives
+    
+    merchants {
+        bigserial id PK
+        text name
+        text email UK
+        text api_key_hash "bcrypt"
+        text api_key_lookup UK "indexed"
+        boolean is_active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    
+    payment_intents {
+        bigserial id PK
+        bigint merchant_id FK
+        text idempotency_key UK
+        bigint amount "smallest unit"
+        text currency
+        text provider "stripe|chapa|telebirr"
+        text status "created|processing|succeeded|failed|refunded"
+        text provider_tx_id "indexed"
+        text failure_reason
+        jsonb metadata
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    
+    ledger_entries {
+        bigserial id PK
+        bigint payment_intent_id FK
+        text account "merchant:42 | gateway:fees"
+        bigint amount "+ credit, - debit"
+        text currency
+        text entry_type "debit|credit"
+        text description
+        timestamptz created_at
+    }
+    
+    webhooks {
+        bigserial id PK
+        text provider
+        text provider_event_id UK "dedupe key"
+        text event_type
+        jsonb payload
+        text signature
+        text status "pending|processed|failed"
+        int attempts
+        text last_error
+        timestamptz created_at
+        timestamptz processed_at
+    }
+    
+    refunds {
+        bigserial id PK
+        bigint payment_intent_id FK
+        bigint merchant_id FK
+        text idempotency_key UK
+        bigint amount
+        text currency
+        text reason
+        text status "pending|succeeded|failed"
+        text provider_refund_id
+        text failure_reason
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    
+    merchant_webhook_endpoints {
+        bigserial id PK
+        bigint merchant_id FK
+        text url UK
+        boolean is_active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    
+    outbound_webhook_deliveries {
+        bigserial id PK
+        bigint endpoint_id FK
+        bigint merchant_id FK
+        text event_type
+        jsonb payload
+        text status "pending|delivered|failed|dead"
+        int attempts
+        int last_status "HTTP code"
+        text last_error
+        timestamptz next_attempt_at "indexed"
+        timestamptz delivered_at
+        timestamptz created_at
+    }
+    
+    audit_log {
+        bigserial id PK
+        bigint merchant_id FK
+        text actor
+        text action
+        text target
+        inet ip
+        text user_agent
+        text request_id
+        jsonb details
+        timestamptz created_at
+    }

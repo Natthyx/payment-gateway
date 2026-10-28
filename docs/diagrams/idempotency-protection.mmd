@@ -1,0 +1,55 @@
+sequenceDiagram
+    participant C as Client
+    participant API as API Layer
+    participant Redis as Redis Cache
+    participant DB as PostgreSQL
+    participant Provider as Stripe/Chapa/Telebirr
+    
+    Note over C,Provider: SCENARIO 1: First Request (Normal Flow)
+    
+    C->>+API: POST /payments<br/>Idempotency-Key: order_42
+    API->>+Redis: GET idempotency:merchant_id:order_42
+    Redis-->>-API: nil (cache miss)
+    
+    API->>+DB: INSERT payment_intents<br/>WHERE (merchant_id, idempotency_key)<br/>UNIQUE constraint
+    DB-->>-API: Success: row inserted
+    
+    API->>+Provider: CreateCharge(order_42)
+    Provider-->>-API: checkout_url, provider_tx_id
+    
+    API->>+Redis: SET idempotency:merchant_id:order_42<br/>value: {response_body}<br/>TTL: 24h
+    Redis-->>-API: OK
+    
+    API-->>-C: 201 Created<br/>{payment_intent, checkout_url}
+    
+    Note over C,Provider: SCENARIO 2: Duplicate Request (Idempotency Replay)
+    
+    C->>+API: POST /payments<br/>Idempotency-Key: order_42<br/>(network retry)
+    API->>+Redis: GET idempotency:merchant_id:order_42
+    Redis-->>-API: {cached_response}
+    
+    Note over API: REPLAY cached response<br/>No DB write<br/>No provider call
+    
+    API-->>-C: 201 Created<br/>{payment_intent, checkout_url}<br/>(identical to first response)
+    
+    Note over C,Provider: SCENARIO 3: Race Condition (Concurrent Requests)
+    
+    par Concurrent Request 1
+        C->>+API: POST /payments<br/>Idempotency-Key: order_43
+        API->>+Redis: GET idempotency:merchant_id:order_43
+        Redis-->>-API: nil
+        API->>+DB: INSERT payment_intents<br/>UNIQUE(merchant_id, idempotency_key)
+        DB-->>-API: Success
+        API->>Provider: CreateCharge
+        API-->>-C: 201 Created
+    and Concurrent Request 2
+        C->>+API: POST /payments<br/>Idempotency-Key: order_43<br/>(same key, concurrent)
+        API->>+Redis: GET idempotency:merchant_id:order_43
+        Redis-->>-API: nil (cache not yet set)
+        API->>+DB: INSERT payment_intents<br/>UNIQUE(merchant_id, idempotency_key)
+        DB-->>-API: ERROR: duplicate key violation<br/>23505
+        Note over API: Detect unique violation<br/>Return 409 Conflict
+        API-->>-C: 409 Conflict<br/>idempotency_key already used
+    end
+    
+    Note over C,Provider: Database UNIQUE constraint is the<br/>authoritative source of truth.<br/>Redis cache is performance optimization only.

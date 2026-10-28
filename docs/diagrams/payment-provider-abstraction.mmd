@@ -1,0 +1,75 @@
+classDiagram
+    class Provider {
+        <<interface>>
+        +Name() string
+        +CreateCharge(ctx, req) (*ChargeResponse, error)
+        +VerifyWebhook(payload, signature) (*WebhookEvent, error)
+        +ParseEventMetadata(payload) (*EventMetadata, error)
+        +GetTransaction(ctx, txID) (*Transaction, error)
+    }
+    
+    class Refunder {
+        <<interface>>
+        +Refund(ctx, req) (*RefundResponse, error)
+    }
+    
+    class StripeClient {
+        -secretKey string
+        -webhookSecret string
+        -httpClient *http.Client
+        +Name() "stripe"
+        +CreateCharge() PaymentIntent API
+        +VerifyWebhook() HMAC-SHA256 + timestamp
+        +Refund() Stripe Refunds API
+    }
+    
+    class ChapaClient {
+        -secretKey string
+        -httpClient *http.Client
+        +Name() "chapa"
+        +CreateCharge() Chapa Charge API
+        +VerifyWebhook() Custom signature
+        +GetTransaction() Chapa Verify API
+    }
+    
+    class TelebirrClient {
+        -appID string
+        -appKey string
+        -publicKey string
+        -httpClient *http.Client
+        +Name() "telebirr"
+        +CreateCharge() Telebirr H5 API
+        +VerifyWebhook() RSA signature
+        +GetTransaction() Telebirr Query API
+    }
+    
+    class Registry {
+        -providers map[string]Provider
+        +Register(p Provider)
+        +Get(name string) (Provider, error)
+    }
+    
+    class PaymentService {
+        -registry *Registry
+        -db *pgxpool.Pool
+        -ledger *LedgerService
+        -idempotency *IdempotencyStore
+        +CreateIntent(merchantID, req)
+    }
+    
+    Provider <|.. StripeClient : implements
+    Provider <|.. ChapaClient : implements
+    Provider <|.. TelebirrClient : implements
+    Refunder <|.. StripeClient : implements
+    
+    Registry o-- Provider : contains
+    PaymentService --> Registry : uses
+    PaymentService --> Provider : calls via registry
+    
+    note for Provider "Strategy Pattern:\nBusiness logic depends on\nthis interface, not concrete\nimplementations.\n\nTo add M-Pesa or PayPal:\n1. Implement Provider\n2. Register in main()\n3. Zero changes to PaymentService"
+    
+    note for Registry "Open/Closed Principle:\nOpen for extension\n(add providers)\nClosed for modification\n(no core code changes)"
+    
+    note for StripeClient "Stripe Implementation:\n- Form-encoded POST\n- HTTP Basic Auth\n- HMAC-SHA256 webhooks\n- 5-minute timestamp skew\n- Idempotency-Key header"
+    
+    note for PaymentService "Service calls:\n1. registry.Get(provider)\n2. provider.CreateCharge(req)\n3. Normalizes response\n4. Never knows which provider"

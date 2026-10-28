@@ -1,0 +1,65 @@
+sequenceDiagram
+    participant Worker as Webhook Worker
+    participant DB as PostgreSQL
+    participant PI as payment_intents Table
+    participant Ledger as ledger_entries Table
+    participant Lock as Row-Level Lock
+    
+    Note over Worker,Lock: Atomic Transaction: Status Update + Ledger Insert
+    
+    Worker->>+DB: BEGIN TRANSACTION<br/>(ISOLATION: READ COMMITTED)
+    
+    Worker->>+PI: UPDATE payment_intents<br/>SET status = 'succeeded'<br/>WHERE provider_tx_id = $1<br/>AND status NOT IN ('succeeded','refunded')<br/>RETURNING *
+    
+    Note over PI,Lock: Implicit row lock acquired<br/>Other transactions wait or skip
+    
+    alt Payment Found and Not Already Succeeded
+        PI-->>Worker: Row returned (locked)
+        
+        Worker->>Worker: Compute ledger entries:<br/>- DEBIT provider: -1050<br/>- CREDIT merchant: +1020<br/>- CREDIT gateway:fees: +30
+        
+        Worker->>Worker: Validate SUM = 0<br/>(-1050 + 1020 + 30 = 0) ✓
+        
+        loop For Each Ledger Entry
+            Worker->>+Ledger: INSERT INTO ledger_entries<br/>(payment_intent_id, account, amount, ...)<br/>UNIQUE(payment_intent_id, account)
+            
+            alt First Insert
+                Ledger-->>-Worker: Success
+            else Duplicate (Replay)
+                Ledger-->>Worker: ERROR: duplicate key (23505)
+                Worker->>DB: ROLLBACK
+                DB-->>-Worker: Transaction aborted
+                Note over Worker: Idempotency: ledger already exists<br/>Return success (no-op)
+            end
+        end
+        
+        Worker->>+DB: COMMIT
+        
+        Note over DB: ALL changes persist atomically:<br/>✓ status: processing → succeeded<br/>✓ 3 ledger rows inserted<br/>✓ updated_at timestamp
+        
+        DB-->>-Worker: Success
+        
+    else Payment Already Succeeded or Not Found
+        PI-->>-Worker: No rows (RETURNING empty)
+        Worker->>DB: ROLLBACK
+        DB-->>-Worker: Transaction aborted
+        Note over Worker: Idempotency: payment already in<br/>terminal state, no ledger write
+    end
+    
+    Note over Worker,Lock: Failure Scenarios Protected:
+    
+    rect rgb(255, 240, 240)
+        Note over Worker: Crash after status update but before ledger?<br/>→ ROLLBACK on connection close<br/>→ Status remains 'processing'<br/>→ Reconciler or retry will fix
+    end
+    
+    rect rgb(255, 240, 240)
+        Note over Worker: Ledger validation fails (SUM ≠ 0)?<br/>→ Application returns error<br/>→ No COMMIT issued<br/>→ Critical bug caught before persist
+    end
+    
+    rect rgb(255, 240, 240)
+        Note over Worker: Webhook delivered twice (network)?<br/>→ First: status updated + ledger created<br/>→ Second: UPDATE returns no rows (already succeeded)<br/>→ Second: ledger INSERT fails (unique constraint)<br/>→ Idempotent: both webhooks return success
+    end
+    
+    rect rgb(240, 255, 240)
+        Note over Worker: Success Guarantee:<br/>Payment status and ledger entries<br/>are committed together or not at all.<br/><br/>PostgreSQL ACID transaction<br/>ensures atomic visibility.
+    end

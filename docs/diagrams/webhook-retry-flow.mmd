@@ -1,0 +1,38 @@
+graph TD
+    START[Webhook Arrives] --> INGEST[Store in Inbox<br/>status: pending]
+    
+    INGEST --> WORKER{Background Worker<br/>Polls Every 10s}
+    
+    WORKER -->|SELECT FOR UPDATE<br/>SKIP LOCKED| CLAIM[Claim One Row]
+    
+    CLAIM --> INC[Increment attempts]
+    
+    INC --> VERIFY{Verify HMAC-SHA256<br/>Signature}
+    
+    VERIFY -->|Valid| PROCESS[Process Event<br/>in Transaction]
+    VERIFY -->|Invalid| CHECK_ATTEMPTS
+    
+    PROCESS -->|Success| MARK_SUCCESS[status: processed<br/>processed_at: NOW]
+    PROCESS -->|Ledger Already Exists| MARK_SUCCESS
+    PROCESS -->|DB Error| CHECK_ATTEMPTS
+    
+    MARK_SUCCESS --> COMMIT[COMMIT Transaction]
+    COMMIT --> OUTBOUND[Enqueue Merchant<br/>Webhook]
+    OUTBOUND --> END[Done]
+    
+    CHECK_ATTEMPTS{attempts < 5?}
+    CHECK_ATTEMPTS -->|Yes| REMAIN_PENDING[status: pending<br/>last_error recorded]
+    CHECK_ATTEMPTS -->|No| DEAD_LETTER[status: failed<br/>Dead Letter]
+    
+    REMAIN_PENDING --> WAIT[Wait for Next Poll<br/>10 seconds]
+    WAIT --> WORKER
+    
+    DEAD_LETTER --> ALERT[Log Error<br/>Prometheus Metric]
+    ALERT --> END
+    
+    style INGEST fill:#d4edda
+    style WORKER fill:#fff3cd
+    style VERIFY fill:#cfe2ff
+    style MARK_SUCCESS fill:#d4edda
+    style DEAD_LETTER fill:#f8d7da
+    style OUTBOUND fill:#e7f3ff

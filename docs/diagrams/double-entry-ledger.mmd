@@ -1,0 +1,49 @@
+graph TB
+    subgraph "Payment Example: $10.50 with 2.9% Fee"
+        PAYMENT[Payment Intent<br/>Amount: 1050 cents<br/>Provider: stripe<br/>Status: succeeded]
+    end
+    
+    subgraph "Ledger Entries (Atomic Insert)"
+        DEBIT[DEBIT<br/>Account: provider:stripe<br/>Amount: -1050<br/>Description: payment received via stripe]
+        
+        CREDIT1[CREDIT<br/>Account: merchant:42<br/>Amount: +1020<br/>Description: payment to merchant<br/>net of 2.9% fee]
+        
+        CREDIT2[CREDIT<br/>Account: gateway:fees<br/>Amount: +30<br/>Description: gateway fee 2.9%]
+    end
+    
+    subgraph "Validation Rule"
+        VALIDATE[SUM of all entries = 0<br/>-1050 + 1020 + 30 = 0 ✓]
+    end
+    
+    subgraph "Database Constraints"
+        UNIQUE[UNIQUE INDEX:<br/>payment_intent_id + account<br/><br/>Prevents duplicate ledger<br/>if webhook processes twice]
+        
+        TRIGGER[TRIGGER: prevent_ledger_modification<br/><br/>Blocks UPDATE and DELETE<br/>Append-only enforcement]
+    end
+    
+    PAYMENT --> DEBIT
+    PAYMENT --> CREDIT1
+    PAYMENT --> CREDIT2
+    
+    DEBIT --> VALIDATE
+    CREDIT1 --> VALIDATE
+    CREDIT2 --> VALIDATE
+    
+    VALIDATE --> UNIQUE
+    UNIQUE --> TRIGGER
+    
+    TRIGGER --> IMMUTABLE[Immutable Audit Trail]
+    
+    style DEBIT fill:#ffe1e1
+    style CREDIT1 fill:#d4edda
+    style CREDIT2 fill:#d4edda
+    style VALIDATE fill:#fff3cd
+    style UNIQUE fill:#cfe2ff
+    style TRIGGER fill:#cfe2ff
+    style IMMUTABLE fill:#e7f3ff
+    
+    Note1[Double-Entry Principle:<br/>Every transaction creates equal<br/>and opposite entries.<br/><br/>Money cannot be created<br/>or destroyed.<br/><br/>If SUM ≠ 0, the transaction<br/>is rejected before commit.]
+    
+    Note2[Idempotency Protection:<br/>UNIQUE constraint on<br/>payment_intent_id + account<br/>prevents duplicate writes<br/>if webhook is replayed.]
+    
+    Note3[Append-Only Enforcement:<br/>PostgreSQL trigger blocks<br/>UPDATE and DELETE.<br/><br/>Not even a compromised<br/>app process can rewrite<br/>financial history.]
