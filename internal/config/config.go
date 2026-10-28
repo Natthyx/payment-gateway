@@ -44,6 +44,11 @@ type Config struct {
     // Limits
     RateLimitPerMerchantPerMinute int
     OutboundWebhookSigningSecret  string // HMAC secret for merchant-facing webhook signatures
+
+    // Providers — "real" (default) or "mock". Mock is for load testing only.
+    ProviderMode string
+    MockLatency  time.Duration // artificial latency per mock provider call
+    MockTxStatus string        // status the mock reports from GetTransaction
 }
 
 func Load() (*Config, error) {
@@ -68,12 +73,21 @@ func Load() (*Config, error) {
         FeePercent:                    getFloat("FEE_PERCENT", 0.029),
         RateLimitPerMerchantPerMinute: getInt("RATE_LIMIT_PER_MERCHANT", 600),
         OutboundWebhookSigningSecret:  mustGetEnv("OUTBOUND_WEBHOOK_SIGNING_SECRET"),
+        ProviderMode:                  strings.ToLower(getEnv("PROVIDER_MODE", "real")),
+        MockLatency:                   getDuration("MOCK_PROVIDER_LATENCY", 0),
+        MockTxStatus:                  getEnv("MOCK_PROVIDER_TX_STATUS", "pending"),
     }
     if cfg.Env != "live" && cfg.Env != "test" {
         return nil, fmt.Errorf("ENV must be 'live' or 'test', got %q", cfg.Env)
     }
     if cfg.FeePercent < 0 || cfg.FeePercent >= 1 {
         return nil, fmt.Errorf("FEE_PERCENT must be in [0,1), got %v", cfg.FeePercent)
+    }
+    if cfg.ProviderMode != "real" && cfg.ProviderMode != "mock" {
+        return nil, fmt.Errorf("PROVIDER_MODE must be 'real' or 'mock', got %q", cfg.ProviderMode)
+    }
+    if cfg.ProviderMode == "mock" && cfg.Env == "live" {
+        return nil, fmt.Errorf("PROVIDER_MODE=mock is not allowed with ENV=live")
     }
     return cfg, nil
 }

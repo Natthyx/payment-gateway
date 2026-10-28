@@ -26,6 +26,7 @@ import (
     "github.com/Natthyx/payment-gateway/internal/payment"
     "github.com/Natthyx/payment-gateway/internal/provider"
     provChapa "github.com/Natthyx/payment-gateway/internal/provider/chapa"
+    provMock "github.com/Natthyx/payment-gateway/internal/provider/mock"
     provStripe "github.com/Natthyx/payment-gateway/internal/provider/stripe"
     provTelebirr "github.com/Natthyx/payment-gateway/internal/provider/telebirr"
     "github.com/Natthyx/payment-gateway/internal/reconcile"
@@ -65,11 +66,24 @@ func main() {
     idempotencyStore := appdb.NewIdempotencyStore(redisClient)
 
     registry := provider.NewRegistry()
-    registry.Register(provStripe.New(cfg.StripeSecretKey, cfg.StripeWebhookSecret))
-    registry.Register(provChapa.New(cfg.ChapaSecretKey))
-    registry.Register(provTelebirr.New(
+    stripeClient := provStripe.New(cfg.StripeSecretKey, cfg.StripeWebhookSecret)
+    chapaClient := provChapa.New(cfg.ChapaSecretKey)
+    telebirrClient := provTelebirr.New(
         cfg.TelebirrAppID, cfg.TelebirrAppKey, cfg.TelebirrPublicKey, cfg.TelebirrShortCode,
-    ))
+    )
+    if cfg.ProviderMode == "mock" {
+        // Load-test mode: no provider network calls. Webhook signatures are
+        // still verified by the real clients.
+        log.Warn().Dur("latency", cfg.MockLatency).Str("tx_status", cfg.MockTxStatus).
+            Msg("PROVIDER_MODE=mock — using in-process mock providers")
+        registry.Register(provMock.New(stripeClient.Name(), stripeClient, cfg.MockLatency, cfg.MockTxStatus))
+        registry.Register(provMock.New(chapaClient.Name(), chapaClient, cfg.MockLatency, cfg.MockTxStatus))
+        registry.Register(provMock.New(telebirrClient.Name(), telebirrClient, cfg.MockLatency, cfg.MockTxStatus))
+    } else {
+        registry.Register(stripeClient)
+        registry.Register(chapaClient)
+        registry.Register(telebirrClient)
+    }
 
     auditSvc := audit.NewService(pgPool)
     merchantSvc := merchant.NewService(pgPool, cfg.Env)
