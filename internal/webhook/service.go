@@ -63,13 +63,13 @@ func (s *Service) Ingest(ctx context.Context, in ingestInput) (*models.Webhook, 
         providerName string
     )
     err := s.db.QueryRow(ctx, `
-        INSERT INTO webhooks (provider, provider_event_id, event_type, payload, signature, status)
-        VALUES ($1, $2, $3, $4, $5, 'pending')
+        INSERT INTO webhooks (provider, provider_event_id, event_type, payload, raw_payload, signature, status)
+        VALUES ($1, $2, $3, $4, $6, $5, 'pending')
         ON CONFLICT (provider, provider_event_id) WHERE provider_event_id IS NOT NULL
         DO NOTHING
         RETURNING id, provider, provider_event_id, event_type, payload, signature,
                   status, attempts, created_at
-    `, in.Provider, in.ProviderEventID, in.EventType, in.Payload, in.Signature).Scan(
+    `, in.Provider, in.ProviderEventID, in.EventType, in.Payload, in.Signature, in.Payload).Scan(
         &wh.ID, &providerName, &wh.ProviderEventID, &wh.EventType, &wh.Payload,
         &wh.Signature, &wh.Status, &wh.Attempts, &wh.CreatedAt,
     )
@@ -104,9 +104,10 @@ func (s *Service) ProcessOnce(ctx context.Context) (bool, error) {
     var (
         wh           models.Webhook
         providerName string
+        rawPayload   []byte
     )
     err = tx.QueryRow(ctx, `
-        SELECT id, provider, provider_event_id, event_type, payload, signature, attempts
+        SELECT id, provider, provider_event_id, event_type, payload, raw_payload, signature, attempts
         FROM webhooks
         WHERE status = 'pending' AND attempts < 5
         ORDER BY created_at ASC
@@ -114,7 +115,7 @@ func (s *Service) ProcessOnce(ctx context.Context) (bool, error) {
         LIMIT 1
     `).Scan(
         &wh.ID, &providerName, &wh.ProviderEventID, &wh.EventType,
-        &wh.Payload, &wh.Signature, &wh.Attempts,
+        &wh.Payload, &rawPayload, &wh.Signature, &wh.Attempts,
     )
     if err != nil {
         if errors.Is(err, pgx.ErrNoRows) {
@@ -123,6 +124,11 @@ func (s *Service) ProcessOnce(ctx context.Context) (bool, error) {
         return false, fmt.Errorf("claim pending webhook: %w", err)
     }
     wh.Provider = models.Provider(providerName)
+    // Signatures cover the exact bytes received; the JSONB column does not
+    // preserve them. Pre-migration rows have no raw copy.
+    if rawPayload != nil {
+        wh.Payload = rawPayload
+    }
 
     if _, err := tx.Exec(ctx, `UPDATE webhooks SET attempts = attempts + 1 WHERE id = $1`, wh.ID); err != nil {
         return true, fmt.Errorf("increment attempts: %w", err)
