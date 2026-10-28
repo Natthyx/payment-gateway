@@ -79,6 +79,13 @@ func (p *Provider) VerifyWebhook(payload []byte, signature string) (*provider.We
     return p.webhooks.VerifyWebhook(payload, signature)
 }
 
+func (p *Provider) VerifyWebhookAt(payload []byte, signature string, receivedAt time.Time) (*provider.WebhookEvent, error) {
+    if rv, ok := p.webhooks.(provider.ReceiptVerifier); ok {
+        return rv.VerifyWebhookAt(payload, signature, receivedAt)
+    }
+    return p.webhooks.VerifyWebhook(payload, signature)
+}
+
 func (p *Provider) ParseEventMetadata(payload []byte) (*provider.EventMetadata, error) {
     return p.webhooks.ParseEventMetadata(payload)
 }

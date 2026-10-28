@@ -10,6 +10,7 @@ import (
     "github.com/go-chi/chi/v5"
     "github.com/rs/zerolog/log"
 
+    "github.com/Natthyx/payment-gateway/internal/metrics"
     "github.com/Natthyx/payment-gateway/internal/models"
 )
 
@@ -30,24 +31,36 @@ func (h *Handler) Routes() func(chi.Router) {
 }
 
 // Receive returns a handler for a specific provider.
-// ALL webhook endpoints must return 200 immediately — even on error.
-// WHY: if we return 500, the provider retries. If we return 200,
-// they stop. We handle retries ourselves via the webhook worker.
+//
+// Status codes are chosen for the provider's retry logic:
+//   200 — stored (or already stored): the provider stops retrying.
+//   400 — the signature does not verify: nothing is stored. Storing it would
+//         let a forged body claim a real event id, so that the genuine
+//         delivery is later dropped as a duplicate.
+//   503 — we could not store it: the provider retries later.
 func (h *Handler) Receive(providerName string) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
         body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1MB cap
         if err != nil {
             log.Error().Err(err).Str("provider", providerName).Msg("reading webhook body")
-            w.WriteHeader(http.StatusOK)
+            w.WriteHeader(http.StatusBadRequest)
             return
         }
 
         signature := webhookSignatureHeader(r, providerName)
 
-        // Best-effort metadata extraction. The provider client knows where to
-        // find event id + type in its payload shape. Used purely for dedupe
-        // and observability — actual decisions still wait for VerifyWebhook
-        // in the worker.
+        p, err := h.service.registry.Get(providerName)
+        if err != nil {
+            w.WriteHeader(http.StatusNotFound)
+            return
+        }
+        if _, err := p.VerifyWebhook(body, signature); err != nil {
+            metrics.WebhookProcessed.WithLabelValues(providerName, "rejected").Inc()
+            log.Warn().Err(err).Str("provider", providerName).Msg("webhook rejected: signature verification failed")
+            w.WriteHeader(http.StatusBadRequest)
+            return
+        }
+
         eventID, eventType := h.extractEventMeta(providerName, body)
 
         // Defense in depth: if a provider does not give us a stable event id,
@@ -66,22 +79,15 @@ func (h *Handler) Receive(providerName string) http.HandlerFunc {
         })
         if err != nil {
             log.Error().Err(err).Str("provider", providerName).Msg("ingesting webhook")
-            w.WriteHeader(http.StatusOK)
+            w.WriteHeader(http.StatusServiceUnavailable)
             return
         }
 
         if wh == nil {
-            // Duplicate event — already stored on an earlier delivery. Acknowledge.
-            log.Info().
+            log.Debug().
                 Str("provider", providerName).
                 Str("provider_event_id", eventID).
                 Msg("duplicate webhook ignored")
-        } else {
-            log.Info().
-                Int64("webhook_id", wh.ID).
-                Str("provider", providerName).
-                Str("event_type", eventType).
-                Msg("webhook received")
         }
 
         w.Header().Set("Content-Type", "application/json")

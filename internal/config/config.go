@@ -15,9 +15,13 @@ type Config struct {
     ReadTimeout  time.Duration
     WriteTimeout time.Duration
 
+    // Logging: trace|debug|info|warn|error
+    LogLevel string
+
     // PostgreSQL
-    DatabaseURL    string
-    MigrationsPath string // file path for golang-migrate
+    DatabaseURL           string // runtime connection (least-privilege role in docker-compose)
+    MigrationsDatabaseURL string // table owner used only for migrations; defaults to DatabaseURL
+    MigrationsPath        string // file path for golang-migrate
 
     // Redis
     RedisAddr     string
@@ -43,7 +47,16 @@ type Config struct {
 
     // Limits
     RateLimitPerMerchantPerMinute int
-    OutboundWebhookSigningSecret  string // HMAC secret for merchant-facing webhook signatures
+    IPRateLimitPerMinute          int
+    // TrustProxyHeaders makes the gateway take the client IP from
+    // X-Real-IP / X-Forwarded-For. Enable only behind a proxy that sets them;
+    // otherwise any client can pick its own IP and dodge the per-IP limit.
+    TrustProxyHeaders bool
+    // AuthCacheTTL caches successful API-key checks in-process so bcrypt does
+    // not run on every request. A rotated key keeps working on other
+    // instances for at most this long. 0 disables the cache.
+    AuthCacheTTL                 time.Duration
+    OutboundWebhookSigningSecret string // HMAC secret for merchant-facing webhook signatures
 
     // Providers — "real" (default) or "mock". Mock is for load testing only.
     ProviderMode string
@@ -57,6 +70,7 @@ func Load() (*Config, error) {
         Port:                          getEnv("PORT", "8080"),
         ReadTimeout:                   getDuration("READ_TIMEOUT", 10*time.Second),
         WriteTimeout:                  getDuration("WRITE_TIMEOUT", 30*time.Second),
+        LogLevel:                      strings.ToLower(getEnv("LOG_LEVEL", "info")),
         DatabaseURL:                   mustGetEnv("DATABASE_URL"),
         MigrationsPath:                getEnv("MIGRATIONS_PATH", "file://migrations"),
         RedisAddr:                     getEnv("REDIS_ADDR", "localhost:6379"),
@@ -72,11 +86,15 @@ func Load() (*Config, error) {
         BaseCallbackURL:               mustGetEnv("BASE_CALLBACK_URL"),
         FeePercent:                    getFloat("FEE_PERCENT", 0.029),
         RateLimitPerMerchantPerMinute: getInt("RATE_LIMIT_PER_MERCHANT", 600),
+        IPRateLimitPerMinute:          getInt("IP_RATE_LIMIT_PER_MINUTE", 200),
+        TrustProxyHeaders:             getEnv("TRUST_PROXY_HEADERS", "false") == "true",
+        AuthCacheTTL:                  getDuration("AUTH_CACHE_TTL", 30*time.Second),
         OutboundWebhookSigningSecret:  mustGetEnv("OUTBOUND_WEBHOOK_SIGNING_SECRET"),
         ProviderMode:                  strings.ToLower(getEnv("PROVIDER_MODE", "real")),
         MockLatency:                   getDuration("MOCK_PROVIDER_LATENCY", 0),
         MockTxStatus:                  getEnv("MOCK_PROVIDER_TX_STATUS", "pending"),
     }
+    cfg.MigrationsDatabaseURL = getEnv("MIGRATIONS_DATABASE_URL", cfg.DatabaseURL)
     if cfg.Env != "live" && cfg.Env != "test" {
         return nil, fmt.Errorf("ENV must be 'live' or 'test', got %q", cfg.Env)
     }

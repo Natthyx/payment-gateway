@@ -80,6 +80,14 @@ type Refunder interface {
     Refund(ctx context.Context, req RefundRequest) (*RefundResponse, error)
 }
 
+// ReceiptVerifier is implemented by providers whose signatures carry a
+// timestamp. The inbox worker verifies stored webhooks against the time they
+// were RECEIVED, so a backlog longer than the replay window does not turn
+// genuine events into verification failures.
+type ReceiptVerifier interface {
+    VerifyWebhookAt(payload []byte, signature string, receivedAt time.Time) (*WebhookEvent, error)
+}
+
 // ── THE INTERFACE ─────────────────────────────────────────────────────────────
 
 // Provider is the Strategy Pattern interface.

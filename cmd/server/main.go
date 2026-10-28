@@ -45,8 +45,15 @@ func main() {
     if err != nil {
         log.Fatal().Err(err).Msg("failed to load config")
     }
+    level, err := zerolog.ParseLevel(cfg.LogLevel)
+    if err != nil {
+        log.Fatal().Err(err).Str("LOG_LEVEL", cfg.LogLevel).Msg("invalid LOG_LEVEL")
+    }
+    zerolog.SetGlobalLevel(level)
 
-    if err := appdb.RunMigrations(cfg.MigrationsPath, cfg.DatabaseURL); err != nil {
+    // Migrations run as the table owner; the app itself can use a
+    // least-privilege role (see migrations/010_append_only_hardening.up.sql).
+    if err := appdb.RunMigrations(cfg.MigrationsPath, cfg.MigrationsDatabaseURL); err != nil {
         log.Fatal().Err(err).Msg("failed to apply migrations")
     }
 
@@ -87,12 +94,13 @@ func main() {
 
     auditSvc := audit.NewService(pgPool)
     merchantSvc := merchant.NewService(pgPool, cfg.Env)
+    merchantSvc.SetAuthCacheTTL(cfg.AuthCacheTTL)
     ledgerSvc := ledger.NewService(pgPool)
     outboundSvc := outbound.NewService(pgPool, cfg.OutboundWebhookSigningSecret)
     paymentSvc := payment.NewService(pgPool, registry, ledgerSvc, idempotencyStore, cfg.FeePercent, cfg.CallbackURL)
-    refundSvc := payment.NewRefundService(pgPool, registry, ledgerSvc, auditSvc)
+    refundSvc := payment.NewRefundService(pgPool, registry, ledgerSvc, auditSvc, outboundSvc)
     webhookSvc := webhook.NewService(pgPool, registry, ledgerSvc, outboundSvc, cfg.FeePercent)
-    reconcileSvc := reconcile.NewService(pgPool, registry, ledgerSvc, cfg.FeePercent)
+    reconcileSvc := reconcile.NewService(pgPool, registry, ledgerSvc, outboundSvc, cfg.FeePercent)
 
     merchantHandler := merchant.NewHandler(merchantSvc, auditSvc)
     paymentHandler := payment.NewHandler(paymentSvc, refundSvc, ledgerSvc)
@@ -102,9 +110,16 @@ func main() {
     r := chi.NewRouter()
     r.Use(middleware.Recoverer)
     r.Use(middleware.Logger)
-    r.Use(chiMiddleware.RealIP)
+    // Only trust client-IP headers when a proxy we control sets them;
+    // otherwise any client could choose its own IP for the per-IP limit.
+    if cfg.TrustProxyHeaders {
+        r.Use(chiMiddleware.RealIP)
+    }
     r.Use(chiMiddleware.RequestID)
-    r.Use(httprate.LimitByIP(200, 1*time.Minute))
+    r.Use(httprate.Limit(cfg.IPRateLimitPerMinute, time.Minute,
+        httprate.WithKeyFuncs(httprate.KeyByIP),
+        httprate.WithLimitHandler(middleware.IPRateLimitExceeded),
+    ))
     r.Use(chiMiddleware.Timeout(30 * time.Second))
     r.Use(metrics.Instrument)
 

@@ -1,7 +1,10 @@
 package payment
 
 import (
+    "bytes"
     "context"
+    "crypto/sha256"
+    "encoding/hex"
     "encoding/json"
     "errors"
     "fmt"
@@ -49,11 +52,12 @@ func NewService(
 }
 
 // CreateIntent is the core payment flow. Steps:
-//  1. Check idempotency cache — replay if already seen
+//  1. Check idempotency cache — replay if already seen with the same request
 //  2. Validate request
-//  3. Insert payment intent with status "created"
+//  3. Insert payment intent with status "created" and the request fingerprint
+//     (a key collision is resolved against the stored intent, see replayExisting)
 //  4. Call provider to get checkout URL
-//  5. Update intent with provider TX ID + status "processing"
+//  5. Update intent with provider TX ID, checkout URL, status "processing"
 //  6. Cache response for idempotency replay
 //  7. Return checkout URL to caller
 func (s *Service) CreateIntent(
@@ -61,6 +65,7 @@ func (s *Service) CreateIntent(
     merchantID int64,
     req models.CreatePaymentIntentRequest,
 ) (*models.CreatePaymentIntentResponse, error) {
+    fp := requestFingerprint(req)
 
     // ── Step 1: Idempotency check ─────────────────────────────────────────────
     // If we've seen this key before, replay the cached response.
@@ -70,13 +75,15 @@ func (s *Service) CreateIntent(
         log.Warn().Err(err).Msg("idempotency cache read failed — proceeding without cache")
     }
     if cached != nil {
-        log.Info().
-            Int64("merchant_id", merchantID).
-            Str("idempotency_key", req.IdempotencyKey).
-            Msg("idempotency cache hit — replaying cached response")
-
+        if cached.Fingerprint != "" && cached.Fingerprint != fp {
+            return nil, apierr.IdempotencyConflict("idempotency_key already used with different request parameters")
+        }
         var resp models.CreatePaymentIntentResponse
         if err := unmarshalJSON(cached.Body, &resp); err == nil {
+            log.Debug().
+                Int64("merchant_id", merchantID).
+                Str("idempotency_key", req.IdempotencyKey).
+                Msg("idempotency cache hit — replaying cached response")
             return &resp, nil
         }
     }
@@ -96,12 +103,12 @@ func (s *Service) CreateIntent(
     var status string
     err = s.db.QueryRow(ctx, `
         INSERT INTO payment_intents
-            (merchant_id, idempotency_key, amount, currency, provider, status, metadata)
-        VALUES ($1, $2, $3, $4, $5, 'created', $6)
+            (merchant_id, idempotency_key, amount, currency, provider, status, metadata, request_fingerprint)
+        VALUES ($1, $2, $3, $4, $5, 'created', $6, $7)
         RETURNING id, merchant_id, idempotency_key, amount, currency,
                   provider, status, created_at, updated_at
     `, merchantID, req.IdempotencyKey, req.Amount,
-        req.Currency, string(req.Provider), req.Metadata,
+        req.Currency, string(req.Provider), req.Metadata, fp,
     ).Scan(
         &pi.ID, &pi.MerchantID, &pi.IdempotencyKey, &pi.Amount,
         &pi.Currency, &pi.Provider, &status,
@@ -109,7 +116,7 @@ func (s *Service) CreateIntent(
     )
     if err != nil {
         if isUniqueViolation(err) {
-            return nil, apierr.IdempotencyConflict("idempotency_key already used")
+            return s.replayExisting(ctx, merchantID, req.IdempotencyKey, fp)
         }
         return nil, fmt.Errorf("inserting payment intent: %w", err)
     }
@@ -117,9 +124,13 @@ func (s *Service) CreateIntent(
 
     // ── Step 4: Call provider ─────────────────────────────────────────────────
     chargeResp, err := p.CreateCharge(ctx, provider.ChargeRequest{
-        Amount:         pi.Amount,
-        Currency:       pi.Currency,
-        IdempotencyKey: pi.IdempotencyKey,
+        Amount:   pi.Amount,
+        Currency: pi.Currency,
+        // Unique across the whole gateway. The merchant's key is only unique
+        // per merchant; sent as-is, two merchants using "order_1" would get
+        // each other's provider transaction (Stripe replays by key; Chapa
+        // and Telebirr use it as the transaction reference).
+        IdempotencyKey: fmt.Sprintf("gw_pi_%d", pi.ID),
         Description:    fmt.Sprintf("Payment #%d", pi.ID),
         CallbackURL:    s.callbackURL(string(req.Provider)),
     })
@@ -132,11 +143,17 @@ func (s *Service) CreateIntent(
     }
 
     // ── Step 5: Update intent with provider TX ID ─────────────────────────────
-    s.db.Exec(ctx, `
+    if _, err := s.db.Exec(ctx, `
         UPDATE payment_intents
-        SET status = 'processing', provider_tx_id = $1
-        WHERE id = $2
-    `, chargeResp.ProviderTxID, pi.ID) //nolint:errcheck
+        SET status = 'processing', provider_tx_id = $1, checkout_url = $2
+        WHERE id = $3
+    `, chargeResp.ProviderTxID, chargeResp.CheckoutURL, pi.ID); err != nil {
+        // The provider has a transaction we could not link. Surface it rather
+        // than reporting success for an intent webhooks cannot find.
+        log.Error().Err(err).Int64("payment_intent_id", pi.ID).Str("provider_tx_id", chargeResp.ProviderTxID).
+            Msg("charge created but intent update failed")
+        return nil, fmt.Errorf("recording provider transaction: %w", err)
+    }
 
     pi.ProviderTxID = chargeResp.ProviderTxID
     pi.Status = models.StatusProcessing
@@ -149,8 +166,9 @@ func (s *Service) CreateIntent(
     // ── Step 6: Cache for idempotency replay ──────────────────────────────────
     if body, err := marshalJSON(resp); err == nil {
         s.idempotency.Set(ctx, merchantID, req.IdempotencyKey, db.CachedResponse{ //nolint:errcheck
-            StatusCode: 201,
-            Body:       body,
+            StatusCode:  201,
+            Body:        body,
+            Fingerprint: fp,
         })
     }
 
@@ -160,10 +178,62 @@ func (s *Service) CreateIntent(
         Int64("amount", pi.Amount).
         Str("currency", pi.Currency).
         Str("provider", string(pi.Provider)).
-        Str("checkout_url", chargeResp.CheckoutURL).
         Msg("payment intent created")
 
     return resp, nil
+}
+
+// replayExisting resolves an idempotency-key collision against the intent
+// already stored for (merchant, key):
+//   - different request parameters   → 409 idempotency_conflict
+//   - first request still in flight  → 409 idempotency_key_in_use (retry later)
+//   - first request failed           → 409 idempotency_conflict (use a new key)
+//   - otherwise                      → replay the original response
+func (s *Service) replayExisting(ctx context.Context, merchantID int64, key, fp string) (*models.CreatePaymentIntentResponse, error) {
+    var pi models.PaymentIntent
+    var status, prov, storedFP, checkoutURL string
+    err := s.db.QueryRow(ctx, `
+        SELECT id, merchant_id, idempotency_key, amount, currency, provider, status,
+               COALESCE(provider_tx_id, ''), metadata, created_at, updated_at,
+               COALESCE(request_fingerprint, ''), COALESCE(checkout_url, '')
+        FROM payment_intents
+        WHERE merchant_id = $1 AND idempotency_key = $2
+    `, merchantID, key).Scan(
+        &pi.ID, &pi.MerchantID, &pi.IdempotencyKey, &pi.Amount, &pi.Currency, &prov, &status,
+        &pi.ProviderTxID, &pi.Metadata, &pi.CreatedAt, &pi.UpdatedAt, &storedFP, &checkoutURL,
+    )
+    if err != nil {
+        return nil, fmt.Errorf("loading intent for idempotent replay: %w", err)
+    }
+    pi.Status = models.PaymentStatus(status)
+    pi.Provider = models.Provider(prov)
+
+    switch {
+    case storedFP != "" && storedFP != fp:
+        return nil, apierr.IdempotencyConflict("idempotency_key already used with different request parameters")
+    case pi.Status == models.StatusCreated:
+        return nil, apierr.IdempotencyInUse("a request with this idempotency_key is in progress; retry later")
+    case pi.Status == models.StatusFailed:
+        return nil, apierr.IdempotencyConflict("the request with this idempotency_key failed; retry with a new key")
+    }
+    // The cached response had status "processing"; keep replays identical
+    // to it even if the intent has moved on since.
+    if pi.Status != models.StatusProcessing {
+        pi.Status = models.StatusProcessing
+    }
+    return &models.CreatePaymentIntentResponse{PaymentIntent: &pi, CheckoutURL: checkoutURL}, nil
+}
+
+// requestFingerprint identifies the parameters an idempotency key was first
+// used with. Metadata is compacted so whitespace differences do not matter.
+func requestFingerprint(req models.CreatePaymentIntentRequest) string {
+    meta := []byte(req.Metadata)
+    var buf bytes.Buffer
+    if len(meta) > 0 && json.Compact(&buf, meta) == nil {
+        meta = buf.Bytes()
+    }
+    sum := sha256.Sum256([]byte(fmt.Sprintf("%d|%s|%s|%s", req.Amount, req.Currency, req.Provider, meta)))
+    return hex.EncodeToString(sum[:])
 }
 
 // GetIntent fetches a payment intent by ID, scoped to the merchant.
@@ -172,7 +242,7 @@ func (s *Service) GetIntent(ctx context.Context, merchantID, intentID int64) (*m
     var status, prov string
     err := s.db.QueryRow(ctx, `
         SELECT id, merchant_id, idempotency_key, amount, currency,
-               provider, status, provider_tx_id, failure_reason,
+               provider, status, COALESCE(provider_tx_id, ''), COALESCE(failure_reason, ''),
                metadata, created_at, updated_at
         FROM payment_intents
         WHERE id = $1 AND merchant_id = $2
@@ -204,7 +274,7 @@ func (s *Service) ListIntents(ctx context.Context, merchantID int64, page, limit
 
     rows, err := s.db.Query(ctx, `
         SELECT id, merchant_id, idempotency_key, amount, currency,
-               provider, status, provider_tx_id, failure_reason,
+               provider, status, COALESCE(provider_tx_id, ''), COALESCE(failure_reason, ''),
                created_at, updated_at
         FROM payment_intents
         WHERE merchant_id = $1

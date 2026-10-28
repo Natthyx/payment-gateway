@@ -25,6 +25,7 @@ import (
     "time"
 
     "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgconn"
     "github.com/jackc/pgx/v5/pgxpool"
     "github.com/rs/zerolog/log"
 
@@ -36,6 +37,9 @@ const (
     baseBackoff = 30 * time.Second
     maxBackoff  = 6 * time.Hour
     httpTimeout = 10 * time.Second
+    // deliveryLease must exceed httpTimeout so a claimed row is not picked up
+    // again while its request is still in flight.
+    deliveryLease = 60 * time.Second
 )
 
 type Service struct {
@@ -52,9 +56,23 @@ func NewService(db *pgxpool.Pool, signingSecret string) *Service {
     }
 }
 
+// Querier is satisfied by both *pgxpool.Pool and pgx.Tx, so events can be
+// enqueued inside the transaction that caused them.
+type Querier interface {
+    Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+    Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
 // Enqueue fans out an event to all active endpoints of a merchant.
 // Returns the number of deliveries enqueued.
 func (s *Service) Enqueue(ctx context.Context, merchantID int64, eventType string, payload interface{}) (int, error) {
+    return s.EnqueueTx(ctx, s.db, merchantID, eventType, payload)
+}
+
+// EnqueueTx is Enqueue using the caller's transaction (or pool). Enqueueing in
+// the same transaction as the state change means the event is recorded if and
+// only if the change commits — no event is lost to a crash in between.
+func (s *Service) EnqueueTx(ctx context.Context, q Querier, merchantID int64, eventType string, payload interface{}) (int, error) {
     body, err := json.Marshal(map[string]interface{}{
         "event_type": eventType,
         "merchant_id": merchantID,
@@ -64,36 +82,25 @@ func (s *Service) Enqueue(ctx context.Context, merchantID int64, eventType strin
     if err != nil {
         return 0, fmt.Errorf("marshal payload: %w", err)
     }
-    rows, err := s.db.Query(ctx, `
-        SELECT id FROM merchant_webhook_endpoints
+    tag, err := q.Exec(ctx, `
+        INSERT INTO outbound_webhook_deliveries (endpoint_id, merchant_id, event_type, payload)
+        SELECT id, merchant_id, $2, $3
+        FROM merchant_webhook_endpoints
         WHERE merchant_id = $1 AND is_active = true
-    `, merchantID)
+    `, merchantID, eventType, body)
     if err != nil {
-        return 0, fmt.Errorf("list endpoints: %w", err)
+        return 0, fmt.Errorf("enqueue outbound delivery: %w", err)
     }
-    defer rows.Close()
-    var endpointIDs []int64
-    for rows.Next() {
-        var id int64
-        if err := rows.Scan(&id); err == nil {
-            endpointIDs = append(endpointIDs, id)
-        }
-    }
-    if len(endpointIDs) == 0 {
-        return 0, nil
-    }
-    for _, id := range endpointIDs {
-        if _, err := s.db.Exec(ctx, `
-            INSERT INTO outbound_webhook_deliveries (endpoint_id, merchant_id, event_type, payload)
-            VALUES ($1, $2, $3, $4)
-        `, id, merchantID, eventType, body); err != nil {
-            log.Error().Err(err).Int64("endpoint_id", id).Msg("enqueue outbound delivery")
-        }
-    }
-    return len(endpointIDs), nil
+    return int(tag.RowsAffected()), nil
 }
 
 // DeliverOnce drains one due delivery. Returns true if a row was processed.
+//
+// The row is claimed in a short transaction that pushes next_attempt_at out by
+// a lease, and the HTTP call happens after that commit, so no DB connection or
+// row lock is held while a merchant endpoint is slow. If the process dies
+// mid-send, the lease expires and the delivery is retried (at-least-once; the
+// Idempotency-Key header lets the merchant dedupe).
 func (s *Service) DeliverOnce(ctx context.Context) (bool, error) {
     tx, err := s.db.BeginTx(ctx, pgx.TxOptions{})
     if err != nil {
@@ -122,48 +129,54 @@ func (s *Service) DeliverOnce(ctx context.Context) (bool, error) {
     if err != nil {
         return false, err
     }
+    if _, err := tx.Exec(ctx, `
+        UPDATE outbound_webhook_deliveries SET next_attempt_at = NOW() + $1::interval WHERE id = $2
+    `, fmt.Sprintf("%d seconds", int(deliveryLease.Seconds())), deliveryID); err != nil {
+        return false, err
+    }
+    if err := tx.Commit(ctx); err != nil {
+        return false, err
+    }
 
     status, sendErr := s.send(ctx, url, payload, deliveryID)
     attempts++
 
     if sendErr == nil && status >= 200 && status < 300 {
-        if _, err := tx.Exec(ctx, `
+        if _, err := s.db.Exec(ctx, `
             UPDATE outbound_webhook_deliveries
             SET status = 'delivered', attempts = $1, last_status = $2,
                 last_error = NULL, delivered_at = NOW()
-            WHERE id = $3
+            WHERE id = $3 AND status = 'pending'
         `, attempts, status, deliveryID); err != nil {
             return true, err
         }
         metrics.OutboundDeliveries.WithLabelValues("success").Inc()
-    } else {
-        outcome := "http_error"
-        errMsg := ""
-        if sendErr != nil {
-            outcome = "network_error"
-            errMsg = sendErr.Error()
-        } else {
-            errMsg = fmt.Sprintf("non-2xx %d", status)
-        }
-        metrics.OutboundDeliveries.WithLabelValues(outcome).Inc()
-
-        next := nextBackoff(attempts)
-        finalStatus := "pending"
-        if attempts >= maxAttempts {
-            finalStatus = "dead"
-        }
-        if _, err := tx.Exec(ctx, `
-            UPDATE outbound_webhook_deliveries
-            SET attempts = $1, last_status = NULLIF($2, 0), last_error = $3,
-                next_attempt_at = NOW() + $4::interval,
-                status = $5
-            WHERE id = $6
-        `, attempts, status, errMsg, fmt.Sprintf("%d seconds", int(next.Seconds())), finalStatus, deliveryID); err != nil {
-            return true, err
-        }
+        return true, nil
     }
 
-    return true, tx.Commit(ctx)
+    outcome := "http_error"
+    errMsg := ""
+    if sendErr != nil {
+        outcome = "network_error"
+        errMsg = sendErr.Error()
+    } else {
+        errMsg = fmt.Sprintf("non-2xx %d", status)
+    }
+    metrics.OutboundDeliveries.WithLabelValues(outcome).Inc()
+
+    next := nextBackoff(attempts)
+    finalStatus := "pending"
+    if attempts >= maxAttempts {
+        finalStatus = "dead"
+    }
+    _, err = s.db.Exec(ctx, `
+        UPDATE outbound_webhook_deliveries
+        SET attempts = $1, last_status = NULLIF($2, 0), last_error = $3,
+            next_attempt_at = NOW() + $4::interval,
+            status = $5
+        WHERE id = $6 AND status = 'pending'
+    `, attempts, status, errMsg, fmt.Sprintf("%d seconds", int(next.Seconds())), finalStatus, deliveryID)
+    return true, err
 }
 
 func (s *Service) send(ctx context.Context, url string, body []byte, deliveryID int64) (int, error) {

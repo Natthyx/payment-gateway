@@ -6,6 +6,7 @@ import (
     "encoding/json"
     "fmt"
     "io"
+    "math"
     "net/http"
     "time"
 	"crypto/hmac"
@@ -89,6 +90,9 @@ func (c *Client) CreateCharge(ctx context.Context, req provider.ChargeRequest) (
 
 // VerifyWebhook for Chapa uses HMAC-SHA256 on the raw payload.
 func (c *Client) VerifyWebhook(payload []byte, signature string) (*provider.WebhookEvent, error) {
+    if c.secretKey == "" {
+        return nil, fmt.Errorf("chapa: webhook secret not configured")
+    }
     mac := hmac.New(sha256.New, []byte(c.secretKey))
     mac.Write(payload)
     expected := hex.EncodeToString(mac.Sum(nil))
@@ -113,7 +117,7 @@ func (c *Client) VerifyWebhook(payload []byte, signature string) (*provider.Webh
     return &provider.WebhookEvent{
         ProviderTxID: event.Data.TxRef,
         EventType:    event.Event,
-        Amount:       int64(event.Data.Amount * 100), // convert to santim
+        Amount:       int64(math.Round(event.Data.Amount * 100)), // convert to santim
         Currency:     event.Data.Currency,
         RawPayload:   payload,
         OccurredAt:   time.Now(),

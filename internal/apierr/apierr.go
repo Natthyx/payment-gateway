@@ -17,6 +17,9 @@ const (
     CodeProviderError       Code = "provider_error"
     CodeInternal            Code = "internal_error"
     CodeIdempotencyConflict Code = "idempotency_conflict"
+    // CodeIdempotencyInUse: a request with this key is still being processed.
+    // Unlike idempotency_conflict, retrying later with the same key is correct.
+    CodeIdempotencyInUse Code = "idempotency_key_in_use"
 )
 
 type Error struct {
@@ -42,3 +45,5 @@ func Provider(msg string) *Error        { return New(http.StatusBadGateway, Code
 func IdempotencyConflict(m string) *Error {
     return New(http.StatusConflict, CodeIdempotencyConflict, m)
 }
+func IdempotencyInUse(m string) *Error  { return New(http.StatusConflict, CodeIdempotencyInUse, m) }
+func RateLimited(m string) *Error       { return New(http.StatusTooManyRequests, CodeRateLimit, m) }

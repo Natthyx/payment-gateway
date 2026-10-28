@@ -126,40 +126,22 @@ func (s *Service) RecordPaymentTx(ctx context.Context, tx pgx.Tx, pi *models.Pay
     return nil
 }
 
-// RecordRefundTx writes the inverse of a payment: money leaves the merchant,
-// the gateway returns its fee, and the provider receives the money back.
+// RecordRefundTx writes the reversal for one refund: money leaves the
+// merchant and flows back through the provider.
 //
-// Refund accounting (partial-refund-safe):
-//   DEBIT  merchant:<id>      -refundAmount      (merchant owes money back)
-//   DEBIT  gateway:fees       -refundFee         (gateway returns proportional fee)
-//   CREDIT provider:<name>    +refundAmount+fee  (money flows back through provider)
+//   DEBIT  merchant:<id>:refund:<refund_id>    -refundAmount
+//   CREDIT provider:<name>:refund:<refund_id>  +refundAmount
 //
-// Net: -refundAmount - refundFee + (refundAmount + refundFee) = 0 ✓
-//
-// Because we already have a UNIQUE(payment_intent_id, account) index from
-// migration 002, we tag refund accounts with a `:refund:<refund_id>` suffix
-// — except wait, we don't have the refund_id here, so the caller is responsible
-// for ensuring at most one refund leg per payment per account by using the
-// partial-refund-safe account naming below.
-func (s *Service) RecordRefundTx(ctx context.Context, tx pgx.Tx, pi *models.PaymentIntent, refundAmount int64) error {
+// The gateway fee is not returned (Stripe does not refund fees by default).
+// Accounts carry the refund id so UNIQUE(payment_intent_id, account) allows
+// any number of refunds per payment while still rejecting a second write for
+// the same refund. (They used to carry the amount, so two refunds of equal
+// amount collided.)
+func (s *Service) RecordRefundTx(ctx context.Context, tx pgx.Tx, pi *models.PaymentIntent, refundID, refundAmount int64) error {
     if refundAmount <= 0 || refundAmount > pi.Amount {
         return fmt.Errorf("refund amount %d out of bounds for payment %d", refundAmount, pi.ID)
     }
-    // Compute fee proportionally (round down → never refund more fee than collected).
-    var refundFee int64
-    if pi.Amount > 0 {
-        refundFee = refundAmount / pi.Amount // 0 or 1 wholesale — we recompute below
-        // Use original fee ratio: feeOriginal = pi.Amount * feePct
-        // We don't have feePct here, so derive proportionally:
-        // refundFee = round_down(refundAmount * feeOriginal / pi.Amount)
-        // But feeOriginal isn't passed in either. Caller-friendly approach:
-        // we make refundFee = 0 here; full ledger reversal of fees should be
-        // handled by passing an explicit fee. Keeping this simple: a partial
-        // refund returns proportional money but NOT fee. Real-world Stripe
-        // matches this — fees are not refunded by default.
-        refundFee = 0
-    }
-    suffix := fmt.Sprintf(":refund:%d", refundAmount) // makes (payment_id, account) unique per amount
+    suffix := fmt.Sprintf(":refund:%d", refundID)
 
     entries := []models.LedgerEntry{
         {
@@ -173,21 +155,11 @@ func (s *Service) RecordRefundTx(ctx context.Context, tx pgx.Tx, pi *models.Paym
         {
             PaymentIntentID: pi.ID,
             Account:         fmt.Sprintf("provider:%s%s", pi.Provider, suffix),
-            Amount:          refundAmount + refundFee,
+            Amount:          refundAmount,
             Currency:        pi.Currency,
             EntryType:       models.EntryCredit,
             Description:     fmt.Sprintf("refund credit back to provider (payment %d)", pi.ID),
         },
-    }
-    if refundFee > 0 {
-        entries = append(entries, models.LedgerEntry{
-            PaymentIntentID: pi.ID,
-            Account:         "gateway:fees" + suffix,
-            Amount:          -refundFee,
-            Currency:        pi.Currency,
-            EntryType:       models.EntryDebit,
-            Description:     fmt.Sprintf("refund fee return (payment %d)", pi.ID),
-        })
     }
     if err := validateBalance(entries); err != nil {
         return err
@@ -204,7 +176,7 @@ func (s *Service) RecordRefundTx(ctx context.Context, tx pgx.Tx, pi *models.Paym
             return fmt.Errorf("insert refund ledger entry: %w", err)
         }
     }
-    log.Info().Int64("payment_intent_id", pi.ID).Int64("refund_amount", refundAmount).Msg("refund ledger recorded")
+    log.Info().Int64("payment_intent_id", pi.ID).Int64("refund_id", refundID).Int64("refund_amount", refundAmount).Msg("refund ledger recorded")
     return nil
 }
 
@@ -235,7 +207,7 @@ func (s *Service) GetBalance(ctx context.Context, account, currency string) (int
 // Used for auditing and reconciliation.
 func (s *Service) GetEntriesForPayment(ctx context.Context, paymentIntentID int64) ([]models.LedgerEntry, error) {
     rows, err := s.db.Query(ctx, `
-        SELECT id, payment_intent_id, account, amount, currency, entry_type, description, created_at
+        SELECT id, payment_intent_id, account, amount, currency, entry_type, COALESCE(description, ''), created_at
         FROM ledger_entries
         WHERE payment_intent_id = $1
         ORDER BY id ASC

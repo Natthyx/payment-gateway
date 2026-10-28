@@ -18,6 +18,7 @@ import (
 
     "github.com/Natthyx/payment-gateway/internal/ledger"
     "github.com/Natthyx/payment-gateway/internal/models"
+    "github.com/Natthyx/payment-gateway/internal/outbound"
     "github.com/Natthyx/payment-gateway/internal/provider"
 )
 
@@ -25,11 +26,12 @@ type Service struct {
     db         *pgxpool.Pool
     registry   *provider.Registry
     ledger     *ledger.Service
+    outbound   *outbound.Service // optional — nil disables merchant notification
     feePercent float64
 }
 
-func NewService(db *pgxpool.Pool, reg *provider.Registry, l *ledger.Service, feePercent float64) *Service {
-    return &Service{db: db, registry: reg, ledger: l, feePercent: feePercent}
+func NewService(db *pgxpool.Pool, reg *provider.Registry, l *ledger.Service, out *outbound.Service, feePercent float64) *Service {
+    return &Service{db: db, registry: reg, ledger: l, outbound: out, feePercent: feePercent}
 }
 
 // RunOnce reconciles payment intents that have been in `processing` for
@@ -43,7 +45,7 @@ func (s *Service) RunOnce(ctx context.Context, staleAfter time.Duration, batch i
     cutoff := time.Now().Add(-staleAfter)
     rows, err := s.db.Query(ctx, `
         SELECT id, merchant_id, idempotency_key, amount, currency, provider,
-               status, provider_tx_id, created_at, updated_at
+               status, COALESCE(provider_tx_id, ''), created_at, updated_at
         FROM payment_intents
         WHERE status = 'processing' AND updated_at < $1
         ORDER BY updated_at ASC
@@ -121,6 +123,14 @@ func (s *Service) reconcileOne(ctx context.Context, pi models.PaymentIntent) err
     if newStatus == models.StatusSucceeded {
         if err := s.ledger.RecordPaymentTx(ctx, dbTx, &pi, s.feePercent); err != nil && !errors.Is(err, ledger.ErrLedgerAlreadyRecorded) {
             return fmt.Errorf("record ledger: %w", err)
+        }
+        // Same merchant notification the webhook path sends; without it a
+        // payment settled by the reconciler was never reported.
+        if s.outbound != nil {
+            pi.Status = models.StatusSucceeded
+            if _, err := s.outbound.EnqueueTx(ctx, dbTx, pi.MerchantID, "payment.succeeded", &pi); err != nil {
+                return err
+            }
         }
     }
     if err := dbTx.Commit(ctx); err != nil {

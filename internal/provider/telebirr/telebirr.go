@@ -6,6 +6,7 @@ import (
     "encoding/json"
     "fmt"
     "io"
+    "math"
     "net/http"
     "crypto/sha256"
 	"sort"
@@ -119,6 +120,9 @@ func (c *Client) CreateCharge(ctx context.Context, req provider.ChargeRequest) (
 
 // VerifyWebhook for Telebirr verifies the SHA256 signature on the callback.
 func (c *Client) VerifyWebhook(payload []byte, signature string) (*provider.WebhookEvent, error) {
+    if c.appKey == "" {
+        return nil, fmt.Errorf("telebirr: app key not configured")
+    }
     var event struct {
         TradeNo    string `json:"trade_no"`
         OutTradeNo string `json:"out_trade_no"`
@@ -155,7 +159,7 @@ func (c *Client) VerifyWebhook(payload []byte, signature string) (*provider.Webh
     return &provider.WebhookEvent{
         ProviderTxID: event.OutTradeNo,
         EventType:    status,
-        Amount:       int64(amountFloat * 100),
+        Amount:       int64(math.Round(amountFloat * 100)),
         Currency:     "ETB",
         RawPayload:   payload,
         OccurredAt:   time.Now(),

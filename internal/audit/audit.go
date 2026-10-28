@@ -10,6 +10,7 @@ import (
     "context"
     "encoding/json"
     "fmt"
+    "net"
 
     "github.com/jackc/pgx/v5/pgxpool"
     "github.com/rs/zerolog/log"
@@ -45,8 +46,8 @@ func (s *Service) Record(ctx context.Context, e Entry) {
         }
     }
     var ip interface{}
-    if e.IP != "" {
-        ip = e.IP
+    if v := normalizeIP(e.IP); v != "" {
+        ip = v
     }
     _, err := s.db.Exec(ctx, `
         INSERT INTO audit_log
@@ -59,6 +60,19 @@ func (s *Service) Record(ctx context.Context, e Entry) {
             Str("action", e.Action).
             Msg("audit write failed")
     }
+}
+
+// normalizeIP turns r.RemoteAddr-style "host:port" into a bare address the
+// INET column accepts, and drops anything that is not an IP so a malformed
+// value can never make the audit insert fail.
+func normalizeIP(s string) string {
+    if host, _, err := net.SplitHostPort(s); err == nil {
+        s = host
+    }
+    if net.ParseIP(s) == nil {
+        return ""
+    }
+    return s
 }
 
 // MerchantActor builds the canonical actor string for a merchant.

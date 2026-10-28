@@ -106,6 +106,15 @@ func (c *Client) CreateCharge(ctx context.Context, req provider.ChargeRequest) (
 //   Without this, any attacker can POST a fake "payment_intent.succeeded"
 //   to your webhook endpoint and get goods/services without paying.
 func (c *Client) VerifyWebhook(payload []byte, signature string) (*provider.WebhookEvent, error) {
+    return c.VerifyWebhookAt(payload, signature, time.Now())
+}
+
+// VerifyWebhookAt is VerifyWebhook with the replay window measured from
+// receivedAt instead of now.
+func (c *Client) VerifyWebhookAt(payload []byte, signature string, receivedAt time.Time) (*provider.WebhookEvent, error) {
+    if c.webhookKey == "" {
+        return nil, fmt.Errorf("stripe: webhook secret not configured")
+    }
     // Parse "t=1234,v1=abcdef" header
     var timestamp, sig string
     for _, part := range strings.Split(signature, ",") {
@@ -130,7 +139,7 @@ func (c *Client) VerifyWebhook(payload []byte, signature string) (*provider.Webh
     if err != nil {
         return nil, fmt.Errorf("stripe: bad signature timestamp: %w", err)
     }
-    skew := time.Since(time.Unix(ts, 0))
+    skew := receivedAt.Sub(time.Unix(ts, 0))
     if skew < 0 {
         skew = -skew
     }

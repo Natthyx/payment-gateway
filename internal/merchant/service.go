@@ -3,10 +3,13 @@ package merchant
 import (
     "context"
     "crypto/rand"
+    "crypto/sha256"
     "encoding/hex"
     "errors"
     "fmt"
     "strings"
+    "sync"
+    "time"
 
     "github.com/jackc/pgx/v5"
     "github.com/jackc/pgx/v5/pgxpool"
@@ -46,13 +49,37 @@ var (
 type Service struct {
     db  *pgxpool.Pool
     env string // "live" or "test"
+
+    // Successful authentications, keyed by SHA-256 of the full API key, so a
+    // bcrypt compare (~230 ms at cost 12) is not paid on every request.
+    // Disabled when authCacheTTL is 0.
+    authCacheTTL time.Duration
+    authMu       sync.Mutex
+    authCache    map[[32]byte]authCacheEntry
 }
+
+type authCacheEntry struct {
+    merchant models.Merchant
+    expires  time.Time
+}
+
+// authCacheMax bounds memory; the cache is simply cleared when it is full.
+const authCacheMax = 10000
 
 func NewService(db *pgxpool.Pool, env string) *Service {
     if env != apiKeyEnvLive && env != apiKeyEnvTest {
         env = apiKeyEnvLive
     }
-    return &Service{db: db, env: env}
+    return &Service{db: db, env: env, authCache: map[[32]byte]authCacheEntry{}}
+}
+
+// SetAuthCacheTTL enables (ttl > 0) or disables the authentication cache.
+// A rotated key stays valid on other instances for at most ttl.
+func (s *Service) SetAuthCacheTTL(ttl time.Duration) {
+    s.authMu.Lock()
+    s.authCacheTTL = ttl
+    s.authCache = map[[32]byte]authCacheEntry{}
+    s.authMu.Unlock()
 }
 
 // Create onboards a new merchant and returns their API key.
@@ -90,6 +117,15 @@ func (s *Service) Create(ctx context.Context, req models.CreateMerchantRequest) 
 // 2) Single indexed SELECT by lookup
 // 3) Single bcrypt.CompareHashAndPassword on the secret half
 func (s *Service) Authenticate(ctx context.Context, apiKey string) (*models.Merchant, error) {
+    cacheKey := sha256.Sum256([]byte(apiKey))
+    s.authMu.Lock()
+    if e, ok := s.authCache[cacheKey]; ok && s.authCacheTTL > 0 && time.Now().Before(e.expires) {
+        m := e.merchant
+        s.authMu.Unlock()
+        return &m, nil
+    }
+    s.authMu.Unlock()
+
     env, lookup, secret, err := parseKey(apiKey)
     if err != nil {
         return nil, ErrInvalidAPIKey
@@ -125,7 +161,28 @@ func (s *Service) Authenticate(ctx context.Context, apiKey string) (*models.Merc
 
     m.APIKeyHash = ""
     m.APIKeyLookup = ""
+
+    s.authMu.Lock()
+    if s.authCacheTTL > 0 {
+        if len(s.authCache) >= authCacheMax {
+            s.authCache = map[[32]byte]authCacheEntry{}
+        }
+        s.authCache[cacheKey] = authCacheEntry{merchant: m, expires: time.Now().Add(s.authCacheTTL)}
+    }
+    s.authMu.Unlock()
     return &m, nil
+}
+
+// forgetMerchant drops cached authentications of one merchant (this
+// instance only; other instances expire theirs within the TTL).
+func (s *Service) forgetMerchant(merchantID int64) {
+    s.authMu.Lock()
+    for k, e := range s.authCache {
+        if e.merchant.ID == merchantID {
+            delete(s.authCache, k)
+        }
+    }
+    s.authMu.Unlock()
 }
 
 // GetByID fetches a merchant by ID.
@@ -159,6 +216,7 @@ func (s *Service) RegenerateKey(ctx context.Context, merchantID int64) (string, 
     if result.RowsAffected() == 0 {
         return "", ErrMerchantNotFound
     }
+    s.forgetMerchant(merchantID)
     return key, nil
 }
 

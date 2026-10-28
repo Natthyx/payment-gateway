@@ -32,8 +32,9 @@ func NewIdempotencyStore(redis *redis.Client) *IdempotencyStore {
 
 // CachedResponse holds the stored result of a previous request.
 type CachedResponse struct {
-    StatusCode int             `json:"status_code"`
-    Body       json.RawMessage `json:"body"`
+    StatusCode  int             `json:"status_code"`
+    Body        json.RawMessage `json:"body"`
+    Fingerprint string          `json:"fingerprint,omitempty"` // hash of the request that produced Body
 }
 
 // Get retrieves a cached response for a given merchant + idempotency key.
