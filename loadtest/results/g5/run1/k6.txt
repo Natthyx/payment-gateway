@@ -1,0 +1,49 @@
+test duration: 0.1 s
+data_received                                    count=21185 rate=378743.184
+data_sent                                        count=16727 rate=299043.533
+g5a_status_201                                   count=9 rate=160.901
+g5a_status_409                                   count=11 rate=196.657
+g5a_status_500                                   count=0 rate=0
+g5a_status_other                                 count=0 rate=0
+g5b_status_201                                   count=3 rate=53.634
+g5b_status_409                                   count=17 rate=303.924
+g5b_status_500                                   count=0 rate=0
+g5b_status_other                                 count=0 rate=0
+g5c_status_201                                   count=5 rate=89.389
+g5c_status_409                                   count=5 rate=89.389
+g5c_status_500                                   count=0 rate=0
+g5c_status_other                                 rate=0 count=0
+g5d_status_201                                   count=1 rate=17.878
+g5d_status_409                                   count=1 rate=17.878
+g5d_status_500                                   count=0 rate=0
+g5d_status_other                                 count=0 rate=0
+http_req_blocked                                 med=0.001 avg=0.043 p(90)=0.16 p(95)=0.351 p(99)=0.531 max=0.547 count=52 min=0
+http_req_connecting                              max=0.269 count=52 min=0 med=0 avg=0.021 p(90)=0.112 p(95)=0.167 p(99)=0.248
+http_req_duration                                count=52 min=0.541 med=2.616 avg=5.926 p(90)=19.698 p(95)=26.163 p(99)=31.056 max=32.079
+http_req_duration{expected_response:true}        min=1.315 med=8.961 avg=12.48 p(90)=28.274 p(95)=30.374 p(99)=31.738 max=32.079 count=18
+http_req_duration{sub:a}                         max=32.079 count=20 min=0.844 med=5.745 avg=11.66 p(90)=27.76 p(95)=30.173 p(99)=31.698
+http_req_duration{sub:b}                         min=1.67 med=2.616 avg=2.872 p(90)=3.982 p(95)=4.73 p(99)=5.352 max=5.507 count=20
+http_req_duration{sub:c}                         min=0.666 med=1.456 avg=1.531 p(90)=1.9 p(95)=2.627 p(99)=3.209 max=3.354 count=10
+http_req_duration{sub:d}                         p(99)=1.62 max=1.631 count=2 min=0.541 med=1.086 avg=1.086 p(90)=1.522 p(95)=1.576
+http_req_failed                                  rate=0.654 passes=34 fails=18
+http_req_receiving                               avg=0.015 p(90)=0.029 p(95)=0.04 p(99)=0.067 max=0.075 count=52 min=0.006 med=0.01
+http_req_sending                                 p(95)=0.029 p(99)=0.042 max=0.047 count=52 min=0.002 med=0.004 avg=0.008 p(90)=0.018
+http_req_tls_handshaking                         min=0 med=0 avg=0 p(90)=0 p(95)=0 p(99)=0 max=0 count=52
+http_req_waiting                                 count=52 min=0.527 med=2.604 avg=5.903 p(90)=19.605 p(95)=26.102 p(99)=31.02 max=32.041
+http_reqs                                        count=52 rate=929.65
+iteration_duration                               p(90)=55.864 p(95)=55.864 p(99)=55.864 max=55.864 count=1 min=55.864 med=55.864 avg=55.864
+iterations                                       count=1 rate=17.878
+status_0_no_response                             count=0 rate=0
+status_200                                       count=0 rate=0
+status_201                                       count=18 rate=321.802
+status_204                                       count=0 rate=0
+status_400                                       count=0 rate=0
+status_401                                       count=0 rate=0
+status_404                                       count=0 rate=0
+status_409                                       count=34 rate=607.848
+status_429                                       count=0 rate=0
+status_500                                       count=0 rate=0
+status_502                                       count=0 rate=0
+status_503                                       count=0 rate=0
+status_504                                       count=0 rate=0
+status_other                                     count=0 rate=0

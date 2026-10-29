@@ -1,0 +1,3 @@
+GOMAXPROCS=8 NumCPU=8
+sequential cost-12 compare, n=20: min=242.0ms median=259.1ms max=421.3ms
+parallel: 8 workers x 10 compares in 4.28s = 18.7 compares/s

@@ -1,0 +1,60 @@
+Pager usage is off.
+== I1 ledger balanced overall (sum of all entries = 0)
+ ledger_sum | ok 
+------------+----
+          0 | t
+(1 row)
+
+== I2 ledger balanced per payment intent (groups with sum <> 0 must be 0)
+ unbalanced_intents 
+--------------------
+                  0
+(1 row)
+
+== I3 exactly one set of ledger entries (3 legs) per succeeded intent
+ succeeded_without_ledger | succeeded_with_wrong_leg_count | succeeded_intents 
+--------------------------+--------------------------------+-------------------
+                        0 |                              0 |              1000
+(1 row)
+
+== I4 no ledger entries for intents that are not succeeded
+ non_succeeded_with_ledger 
+---------------------------
+                         0
+(1 row)
+
+== I5 intent statuses consistent with webhooks (every seeded intent got a success event;
+   warm-up intents, key g3-warm-*, got none and must stay processing)
+  kind  |  status   | count 
+--------+-----------+-------
+ seeded | succeeded |  1000
+(1 row)
+
+ seeded_succeeded | expected | ok 
+------------------+----------+----
+             1000 |     1000 | t
+(1 row)
+
+== I6 each provider event stored once; none processed twice
+ webhook_rows | distinct_events | expected_events | ok 
+--------------+-----------------+-----------------+----
+         1051 |            1051 |            1051 | t
+(1 row)
+
+  status   | count | max_attempts 
+-----------+-------+--------------
+ processed |  1051 |            1
+(1 row)
+
+== I7 ledger leg amounts match the intent (provider leg = -amount)
+ provider_leg_mismatch 
+-----------------------
+                     0
+(1 row)
+
+== Drain timing from DB clocks
+ processed | ingest_span_s | drain_after_last_ingest_s | first_ingest_to_last_processed_s | processing_span_s | processed_per_s 
+-----------+---------------+---------------------------+----------------------------------+-------------------+-----------------
+      1051 |         0.360 |                     5.699 |                            6.059 |             1.123 |           935.9
+(1 row)
+

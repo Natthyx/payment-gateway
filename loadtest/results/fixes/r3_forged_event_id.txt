@@ -1,0 +1,14 @@
+# R3 forged body claims a real event id before the genuine delivery @ 2026-10-28T18:10:02Z (local, single machine, PROVIDER_MODE=mock, commit 633fe7b)
+forged (bad signature) -> HTTP 400
+webhook rows for evt_r3 after forged: 0
+genuine -> HTTP 200
+ provider_event_id |  status   | attempts 
+-------------------+-----------+----------
+ evt_r3            | processed |        1
+(1 row)
+
+ id |  status   
+----+-----------
+  1 | succeeded
+(1 row)
+

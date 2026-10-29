@@ -1,0 +1,16 @@
+# B3 audit_log write for POST /merchants without X-Forwarded-For/X-Real-IP @ 2026-10-28T18:09:43Z (local, single machine, PROVIDER_MODE=mock, commit 633fe7b)
+--- audit_log rows for action merchant.create:
+ count 
+-------
+     1
+(1 row)
+
+--- app log:
+--- same request WITH X-Real-IP header:
+HTTP 201
+     action      |     ip     
+-----------------+------------
+ merchant.create | 172.18.0.1
+ merchant.create | 172.18.0.1
+(2 rows)
+

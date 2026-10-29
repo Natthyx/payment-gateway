@@ -1,0 +1,49 @@
+# Load-test override. Use only through loadtest/lib/common.sh, which runs
+#   docker compose -p gwloadtest -f docker-compose.yaml -f loadtest/docker-compose.loadtest.yml
+# The separate project name, container names and unpublished DB ports keep this
+# stack (and its volume gwloadtest_postgres_data) apart from the dev stack.
+#
+# Behaviour-relevant changes versus the base compose file:
+#   - PROVIDER_MODE=mock: in-process mock providers, no calls to Stripe/Chapa/Telebirr
+#   - RATE_LIMIT_PER_MERCHANT and IP_RATE_LIMIT_PER_MINUTE raised (defaults 600 and
+#     200 per minute) unless LT_RATE_LIMIT_PER_MERCHANT / LT_IP_RATE_LIMIT are set:
+#     one load generator is one client IP
+#   - LOG_LEVEL=warn
+#   - throwaway webhook secrets and runtime DB password generated at test time
+#   - .env is NOT loaded (it may contain real provider keys)
+services:
+  postgres:
+    container_name: lt_gateway_postgres
+    ports: !reset []
+    environment:
+      GATEWAY_RUNTIME_PASSWORD: ${LT_DB_RUNTIME_PASSWORD:?generate with loadtest/run.sh}
+
+  redis:
+    container_name: lt_gateway_redis
+    ports: !reset []
+
+  app:
+    container_name: lt_gateway_app
+    env_file: !reset []
+    restart: "no"
+    ports: !override
+      - "127.0.0.1:${LT_APP_PORT:-18080}:8080"
+    environment:
+      DATABASE_URL: postgres://gateway_runtime:${LT_DB_RUNTIME_PASSWORD:?}@postgres:5432/gateway_db?sslmode=disable
+      ENV: test
+      PORT: "8080"
+      BASE_CALLBACK_URL: https://gateway.loadtest.invalid
+      PROVIDER_MODE: mock
+      MOCK_PROVIDER_LATENCY: ${LT_MOCK_LATENCY:-0s}
+      MOCK_PROVIDER_TX_STATUS: ${LT_MOCK_TX_STATUS:-pending}
+      RATE_LIMIT_PER_MERCHANT: ${LT_RATE_LIMIT_PER_MERCHANT:-1000000}
+      IP_RATE_LIMIT_PER_MINUTE: ${LT_IP_RATE_LIMIT:-1000000}
+      LOG_LEVEL: warn
+      STRIPE_SECRET_KEY: ""
+      STRIPE_WEBHOOK_SECRET: ${LT_STRIPE_WEBHOOK_SECRET:?generate with loadtest/run.sh}
+      CHAPA_SECRET_KEY: ${LT_CHAPA_SECRET:?generate with loadtest/run.sh}
+      TELEBIRR_APP_ID: ""
+      TELEBIRR_APP_KEY: ${LT_TELEBIRR_APP_KEY:?generate with loadtest/run.sh}
+      TELEBIRR_PUBLIC_KEY: ""
+      TELEBIRR_SHORT_CODE: ""
+      OUTBOUND_WEBHOOK_SIGNING_SECRET: ${LT_OUTBOUND_SECRET:?generate with loadtest/run.sh}

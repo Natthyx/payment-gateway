@@ -1,0 +1,31 @@
+test duration: 60.0 s
+data_received                                    count=7230533 rate=120500.476
+data_sent                                        count=4077681 rate=67956.609
+http_req_blocked                                 min=0.001 med=0.007 avg=0.018 p(90)=0.014 p(95)=0.028 p(99)=0.316 max=4.416 count=12001
+http_req_connecting                              max=1.051 count=12001 min=0 med=0 avg=0.008 p(90)=0 p(95)=0 p(99)=0.229
+http_req_duration                                med=2.066 avg=3.658 p(90)=2.911 p(95)=3.561 p(99)=41.545 max=276.878 count=12001 min=0.7
+http_req_duration{expected_response:true}        min=0.7 med=2.066 avg=3.658 p(90)=2.911 p(95)=3.561 p(99)=41.545 max=276.878 count=12001
+http_req_failed                                  rate=0 passes=0 fails=12001
+http_req_receiving                               med=0.041 avg=0.043 p(90)=0.056 p(95)=0.065 p(99)=0.098 max=10.844 count=12001 min=0.006
+http_req_sending                                 p(90)=0.041 p(95)=0.05 p(99)=0.091 max=3.812 count=12001 min=0.004 med=0.027 avg=0.031
+http_req_tls_handshaking                         p(95)=0 p(99)=0 max=0 count=12001 min=0 med=0 avg=0 p(90)=0
+http_req_waiting                                 p(90)=2.836 p(95)=3.459 p(99)=41.473 max=276.812 count=12001 min=0.666 med=1.994 avg=3.585
+http_reqs                                        count=12001 rate=200.003
+iteration_duration                               p(99)=45.313 max=277.092 count=12001 min=0.794 med=2.339 avg=3.932 p(90)=3.244 p(95)=3.954
+iterations                                       count=12001 rate=200.003
+status_0_no_response                             count=0 rate=0
+status_200                                       count=0 rate=0
+status_201                                       count=12001 rate=200.003
+status_204                                       count=0 rate=0
+status_400                                       count=0 rate=0
+status_401                                       count=0 rate=0
+status_404                                       count=0 rate=0
+status_409                                       count=0 rate=0
+status_429                                       count=0 rate=0
+status_500                                       count=0 rate=0
+status_502                                       count=0 rate=0
+status_503                                       rate=0 count=0
+status_504                                       count=0 rate=0
+status_other                                     count=0 rate=0
+vus                                              value=1 min=1 max=6
+vus_max                                          min=400 max=400 value=400

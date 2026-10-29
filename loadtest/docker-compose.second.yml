@@ -1,0 +1,29 @@
+# G8 only: a second gateway instance on another port, same Postgres and Redis.
+services:
+  app2:
+    image: gwloadtest-app
+    container_name: lt_gateway_app2
+    restart: "no"
+    environment:
+      DATABASE_URL: postgres://gateway_runtime:${LT_DB_RUNTIME_PASSWORD:?}@postgres:5432/gateway_db?sslmode=disable
+      MIGRATIONS_DATABASE_URL: postgres://gateway:gateway_secret@postgres:5432/gateway_db?sslmode=disable
+      REDIS_ADDR: redis:6379
+      ENV: test
+      PORT: "8080"
+      BASE_CALLBACK_URL: https://gateway.loadtest.invalid
+      PROVIDER_MODE: mock
+      MOCK_PROVIDER_LATENCY: ${LT_MOCK_LATENCY:-0s}
+      MOCK_PROVIDER_TX_STATUS: ${LT_MOCK_TX_STATUS:-pending}
+      RATE_LIMIT_PER_MERCHANT: ${LT_RATE_LIMIT_PER_MERCHANT:-1000000}
+      IP_RATE_LIMIT_PER_MINUTE: ${LT_IP_RATE_LIMIT:-1000000}
+      LOG_LEVEL: warn
+      STRIPE_SECRET_KEY: ""
+      STRIPE_WEBHOOK_SECRET: ${LT_STRIPE_WEBHOOK_SECRET:?}
+      CHAPA_SECRET_KEY: ${LT_CHAPA_SECRET:?}
+      TELEBIRR_APP_KEY: ${LT_TELEBIRR_APP_KEY:?}
+      OUTBOUND_WEBHOOK_SIGNING_SECRET: ${LT_OUTBOUND_SECRET:?}
+    ports:
+      - "127.0.0.1:18081:8080"
+    depends_on:
+      app:
+        condition: service_started

@@ -1,0 +1,13 @@
+# R4 webhook received 10 minutes ago (valid on receipt) processed now @ 2026-10-28T18:10:53Z (local, single machine, PROVIDER_MODE=mock, commit 633fe7b)
+simulating a 10-minute backlog: row inserted directly with created_at = receipt time = signature time
+INSERT 0 1
+  status   | attempts | last_error 
+-----------+----------+------------
+ processed |        1 | 
+(1 row)
+
+  status   
+-----------
+ succeeded
+(1 row)
+

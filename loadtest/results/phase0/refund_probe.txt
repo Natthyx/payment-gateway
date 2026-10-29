@@ -1,0 +1,30 @@
+# refund probe @ 2026-10-28T17:05:50Z (local, single machine, PROVIDER_MODE=mock)
+payment 3 created (status processing); setting status=succeeded via SQL
+UPDATE 1
+--- POST /payments/3/refunds amount=3000 Idempotency-Key=r1
+{"success":false,"error_obj":{"code":"internal_error","message":"internal error"}}
+
+HTTP 500
+--- POST /payments/3/refunds amount=3000 Idempotency-Key=r1
+{"success":false,"error_obj":{"code":"internal_error","message":"internal error"}}
+
+HTTP 500
+--- refunds table after
+ id | payment_intent_id | amount | status  | provider_refund_id | failure_reason 
+----+-------------------+--------+---------+--------------------+----------------
+  1 |                 3 |   3000 | pending |                    | 
+(1 row)
+
+--- ledger rows for payment 3
+ account | amount 
+---------+--------
+(0 rows)
+
+--- mock provider calls
+gateway_mock_provider_calls_total{op="create_charge",provider="stripe"} 2
+gateway_mock_provider_calls_total{op="create_charge",provider="telebirr"} 1
+--- app log (refund lines)
+{"level":"error","error":"inserting refund: can't scan into dest[8]: cannot scan NULL into *string","path":"/payments/3/refunds","time":1793207151,"message":"internal error"}
+{"level":"info","method":"POST","path":"/payments/3/refunds","status":500,"latency_ms":241.777292,"time":1793207151,"message":"request"}
+{"level":"error","error":"inserting refund: can't scan into dest[8]: cannot scan NULL into *string","path":"/payments/3/refunds","time":1793207151,"message":"internal error"}
+{"level":"info","method":"POST","path":"/payments/3/refunds","status":500,"latency_ms":243.435708,"time":1793207151,"message":"request"}

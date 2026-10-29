@@ -1,0 +1,43 @@
+test duration: 50.0 s
+data_received                                    count=491509 rate=9829.681
+data_sent                                        count=347087 rate=6941.388
+g9a_201                                          rate=11.999 count=600
+g9a_429_other                                    count=0 rate=0
+g9a_429_rate_limit_exceeded                      rate=8 count=400
+g9a_other                                        rate=0 count=0
+g9b_200                                          count=0 rate=0
+g9b_429                                          count=0 rate=0
+g9b_other                                        count=0 rate=0
+g9c_200                                          count=0 rate=0
+g9c_429                                          count=0 rate=0
+g9c_other                                        count=0 rate=0
+http_req_blocked                                 p(95)=0.032 p(99)=0.561 max=2.834 count=1000 min=0.002 med=0.014 avg=0.036 p(90)=0.021
+http_req_connecting                              max=0.662 count=1000 min=0 med=0 avg=0.014 p(90)=0 p(95)=0 p(99)=0.436
+http_req_duration                                min=0.666 med=4.851 avg=6.318 p(90)=6.904 p(95)=7.729 p(99)=43.568 max=288.062 count=1000
+http_req_duration{expected_response:true}        avg=7.294 p(90)=7.266 p(95)=8.025 p(99)=43.099 max=288.062 count=600 min=1.666 med=5.531
+http_req_duration{scenario:a_merchant,status:201} min=1.666 med=5.531 avg=7.294 p(90)=7.266 p(95)=8.025 p(99)=43.099 max=288.062 count=600
+http_req_duration{scenario:a_merchant,status:429} p(95)=4.358 p(99)=71.137 max=270.647 count=400 min=0.666 med=2.561 avg=4.853 p(90)=3.864
+http_req_failed                                  rate=0.4 passes=400 fails=600
+http_req_receiving                               med=0.083 avg=0.089 p(90)=0.125 p(95)=0.139 p(99)=0.181 max=0.715 count=1000 min=0.018
+http_req_sending                                 avg=0.058 p(90)=0.074 p(95)=0.08 p(99)=0.127 max=1.124 count=1000 min=0.011 med=0.055
+http_req_tls_handshaking                         p(90)=0 p(95)=0 p(99)=0 max=0 count=1000 min=0 med=0 avg=0
+http_req_waiting                                 med=4.724 avg=6.171 p(90)=6.755 p(95)=7.531 p(99)=43.345 max=287.291 count=1000 min=0.565
+http_reqs                                        count=1000 rate=19.999
+iteration_duration                               med=5.276 avg=6.826 p(90)=7.444 p(95)=8.281 p(99)=44.965 max=295.399 count=1000 min=0.972
+iterations                                       rate=19.999 count=1000
+status_0_no_response                             count=0 rate=0
+status_200                                       count=0 rate=0
+status_201                                       count=600 rate=11.999
+status_204                                       count=0 rate=0
+status_400                                       count=0 rate=0
+status_401                                       count=0 rate=0
+status_404                                       count=0 rate=0
+status_409                                       count=0 rate=0
+status_429                                       rate=8 count=400
+status_500                                       count=0 rate=0
+status_502                                       count=0 rate=0
+status_503                                       count=0 rate=0
+status_504                                       count=0 rate=0
+status_other                                     count=0 rate=0
+vus                                              min=0 max=0 value=0
+vus_max                                          value=40 min=40 max=40

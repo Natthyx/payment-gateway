@@ -1,0 +1,10 @@
+# R5 merchant A's idempotency key equals merchant B's provider_tx_id @ 2026-10-28T18:10:12Z (local, single machine, PROVIDER_MODE=mock, commit 633fe7b)
+B intent: {"id":2,"provider_tx_id":"mock_e2fb50b29d181e0e6e50085f"}
+A intent: {"id":3,"idempotency_key":"mock_e2fb50b29d181e0e6e50085f"}
+success webhook for B's transaction -> HTTP 200
+ id | merchant_id |        idempotency_key        |   status   | ledger_rows 
+----+-------------+-------------------------------+------------+-------------
+  2 |           2 | r5-b                          | succeeded  |           3
+  3 |           1 | mock_e2fb50b29d181e0e6e50085f | processing |           0
+(2 rows)
+

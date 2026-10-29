@@ -1,0 +1,17 @@
+[10:54:00] reset: down -v (project gwloadtest only)
+[10:57:00] reset: stack ready
+[10:57:02] === g5 ===
+[10:57:02] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:57:11] reset: stack ready
+[10:57:24] g5 run 1 done
+[10:57:24] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:57:32] reset: stack ready
+[10:57:45] g5 run 2 done
+[10:57:45] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:57:53] reset: stack ready
+[10:58:07] g5 run 3 done
+[10:58:07] finished: g5
+e7be08b exit=0

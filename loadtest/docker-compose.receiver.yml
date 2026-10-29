@@ -1,0 +1,22 @@
+# G6 only: fake merchant webhook receiver (HTTPS, self-signed CA generated at
+# test time). The gateway trusts only that CA via SSL_CERT_FILE, which also
+# means it could not complete a TLS handshake with a real provider.
+services:
+  receiver:
+    build:
+      context: loadtest/tools/receiver
+    container_name: lt_receiver
+    environment:
+      FAIL_RATE: ${LT_RECEIVER_FAIL_RATE:-0.30}
+      FAIL_SEED: ${LT_RECEIVER_SEED:-1}
+      SIGNING_SECRET: ${LT_OUTBOUND_SECRET:?}
+    volumes:
+      - ./loadtest/.state/certs:/certs:ro
+    ports:
+      - "127.0.0.1:18443:8443"
+
+  app:
+    environment:
+      SSL_CERT_FILE: /lt-certs/ca.pem
+    volumes:
+      - ./loadtest/.state/certs:/lt-certs:ro

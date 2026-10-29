@@ -1,0 +1,152 @@
+-- g7_append_only.sql as gateway @ 2026-10-28T18:11:20Z
+Pager usage is off.
+== 1. Connected role, ownership, protections
+SELECT current_user AS connected_as, r.rolsuper AS is_superuser,
+       pg_has_role(current_user, 'gateway_app', 'member') AS member_of_gateway_app
+FROM pg_roles r WHERE r.rolname = current_user;
+ connected_as | is_superuser | member_of_gateway_app 
+--------------+--------------+-----------------------
+ gateway      | t            | t
+(1 row)
+
+SELECT tablename, tableowner FROM pg_tables WHERE tablename IN ('ledger_entries', 'audit_log') ORDER BY 1;
+   tablename    | tableowner 
+----------------+------------
+ audit_log      | gateway
+ ledger_entries | gateway
+(2 rows)
+
+SELECT tgrelid::regclass AS table_name, tgname,
+       CASE WHEN tgtype & 2 = 2 THEN 'BEFORE' ELSE 'AFTER' END AS timing,
+       CASE WHEN tgtype & 1 = 1 THEN 'ROW' ELSE 'STATEMENT' END AS level
+FROM pg_trigger WHERE NOT tgisinternal AND tgrelid::regclass::text IN ('ledger_entries', 'audit_log') ORDER BY 1, 2;
+   table_name   |         tgname         | timing |   level   
+----------------+------------------------+--------+-----------
+ ledger_entries | trg_no_delete_ledger   | BEFORE | ROW
+ ledger_entries | trg_no_truncate_ledger | BEFORE | STATEMENT
+ ledger_entries | trg_no_update_ledger   | BEFORE | ROW
+ audit_log      | trg_no_delete_audit    | BEFORE | ROW
+ audit_log      | trg_no_truncate_audit  | BEFORE | STATEMENT
+ audit_log      | trg_no_update_audit    | BEFORE | ROW
+(6 rows)
+
+SELECT t AS table_name,
+       has_table_privilege(current_user, t, 'INSERT')   AS can_insert,
+       has_table_privilege(current_user, t, 'UPDATE')   AS can_update,
+       has_table_privilege(current_user, t, 'DELETE')   AS can_delete,
+       has_table_privilege(current_user, t, 'TRUNCATE') AS can_truncate
+FROM unnest(ARRAY['ledger_entries', 'audit_log']) AS t;
+   table_name   | can_insert | can_update | can_delete | can_truncate 
+----------------+------------+------------+------------+--------------
+ ledger_entries | t          | t          | t          | t
+ audit_log      | t          | t          | t          | t
+(2 rows)
+
+SELECT 'ledger_entries' AS t, count(*) FROM ledger_entries UNION ALL SELECT 'audit_log', count(*) FROM audit_log;
+       t        | count 
+----------------+-------
+ ledger_entries |     9
+ audit_log      |    20
+(2 rows)
+
+== 2. ledger_entries
+-- 2a UPDATE
+BEGIN;
+BEGIN
+UPDATE ledger_entries SET amount = amount + 1 WHERE id = (SELECT min(id) FROM ledger_entries);
+ROLLBACK;
+ROLLBACK
+-- 2b DELETE
+BEGIN;
+ERROR:  ledger_entries is append-only. Modifications are not permitted.
+CONTEXT:  PL/pgSQL function prevent_ledger_modification() line 3 at RAISE
+BEGIN
+DELETE FROM ledger_entries WHERE id = (SELECT min(id) FROM ledger_entries);
+ERROR:  ledger_entries is append-only. Modifications are not permitted.
+CONTEXT:  PL/pgSQL function prevent_ledger_modification() line 3 at RAISE
+ROLLBACK;
+ROLLBACK
+-- 2c TRUNCATE
+BEGIN;
+BEGIN
+TRUNCATE ledger_entries;
+ERROR:  ledger_entries is append-only. TRUNCATE is not permitted.
+CONTEXT:  PL/pgSQL function prevent_truncate() line 3 at RAISE
+ROLLBACK;
+ROLLBACK
+-- 2d DISABLE TRIGGER, then UPDATE
+BEGIN;
+BEGIN
+ALTER TABLE ledger_entries DISABLE TRIGGER trg_no_update_ledger;
+ALTER TABLE
+UPDATE ledger_entries SET amount = amount + 1 WHERE id = (SELECT min(id) FROM ledger_entries);
+UPDATE 1
+ROLLBACK;
+ROLLBACK
+-- 2e session_replication_role=replica (skips ordinary triggers), then DELETE
+BEGIN;
+BEGIN
+SET LOCAL session_replication_role = replica;
+SET
+DELETE FROM ledger_entries WHERE id = (SELECT min(id) FROM ledger_entries);
+DELETE 1
+ROLLBACK;
+ROLLBACK
+== 3. audit_log
+-- 3a UPDATE
+BEGIN;
+BEGIN
+UPDATE audit_log SET action = 'tampered' WHERE id = (SELECT min(id) FROM audit_log);
+ERROR:  audit_log is append-only. Modifications are not permitted.
+CONTEXT:  PL/pgSQL function prevent_audit_modification() line 3 at RAISE
+ROLLBACK;
+ROLLBACK
+-- 3b DELETE
+BEGIN;
+BEGIN
+DELETE FROM audit_log WHERE id = (SELECT min(id) FROM audit_log);
+ERROR:  audit_log is append-only. Modifications are not permitted.
+CONTEXT:  PL/pgSQL function prevent_audit_modification() line 3 at RAISE
+ROLLBACK;
+ROLLBACK
+-- 3c TRUNCATE
+BEGIN;
+BEGIN
+TRUNCATE audit_log;
+ROLLBACK;
+ERROR:  audit_log is append-only. TRUNCATE is not permitted.
+CONTEXT:  PL/pgSQL function prevent_truncate() line 3 at RAISE
+ROLLBACK
+-- 3d DISABLE TRIGGER, then UPDATE
+BEGIN;
+BEGIN
+ALTER TABLE audit_log DISABLE TRIGGER trg_no_update_audit;
+ALTER TABLE
+UPDATE audit_log SET action = 'tampered' WHERE id = (SELECT min(id) FROM audit_log);
+UPDATE 1
+ROLLBACK;
+ROLLBACK
+-- 3e session_replication_role=replica, then DELETE
+BEGIN;
+BEGIN
+SET LOCAL session_replication_role = replica;
+SET
+DELETE FROM audit_log WHERE id = (SELECT min(id) FROM audit_log);
+DELETE 1
+ROLLBACK;
+ROLLBACK
+== 4. INSERT still works (rolled back)
+BEGIN;
+BEGIN
+INSERT INTO audit_log (actor, action, target) VALUES ('system:g7', 'g7.probe', 'g7');
+INSERT 0 1
+ROLLBACK;
+ROLLBACK
+== 5. State after all attempts (must equal section 1)
+SELECT 'ledger_entries' AS t, count(*) FROM ledger_entries UNION ALL SELECT 'audit_log', count(*) FROM audit_log;
+       t        | count 
+----------------+-------
+ ledger_entries |     9
+ audit_log      |    20
+(2 rows)
+

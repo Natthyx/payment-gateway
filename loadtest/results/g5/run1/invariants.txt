@@ -1,0 +1,61 @@
+Pager usage is off.
+== per payment: refunds by status, total succeeded vs payment amount
+ payment_id | amount | payment_status | refunds_succeeded | refunds_pending | refunds_failed | refunded_total | ok_not_over_refunded 
+------------+--------+----------------+-------------------+-----------------+----------------+----------------+----------------------
+          1 |  10000 | succeeded      |                 1 |               0 |              0 |           2000 | t
+          2 |  10000 | succeeded      |                 1 |               0 |              0 |           6000 | t
+          3 |  10000 | succeeded      |                 3 |               0 |              0 |           9000 | t
+          4 |  10000 | succeeded      |                 9 |               0 |              0 |           9039 | t
+(4 rows)
+
+== INVARIANT: payments where succeeded refunds exceed the amount (must be 0)
+ over_refunded_payments 
+------------------------
+                      0
+(1 row)
+
+== INVARIANT: refund rows per idempotency key (must be 1 each)
+ idempotency_key | count 
+-----------------+-------
+ g5c-r1          |     1
+(1 row)
+
+== INVARIANT: ledger balanced overall and per payment
+ ledger_sum 
+------------
+          0
+(1 row)
+
+ unbalanced_payments 
+---------------------
+                   0
+(1 row)
+
+== ledger refund legs vs succeeded refunds, per payment
+ payment_id | refunds_succeeded | refund_debit_legs | ledger_refunded_total | merchant_net_for_payment 
+------------+-------------------+-------------------+-----------------------+--------------------------
+          1 |                 1 |                 1 |                  2000 |                     7710
+          2 |                 1 |                 1 |                  6000 |                     3710
+          3 |                 3 |                 3 |                  9000 |                      710
+          4 |                 9 |                 9 |                  9039 |                      671
+(4 rows)
+
+== refund rows (all)
+ id | payment_intent_id | idempotency_key | amount |  status   | failure_reason 
+----+-------------------+-----------------+--------+-----------+----------------
+ 13 |                 1 | g5c-r1          |   2000 | succeeded | 
+ 14 |                 2 | g5d-r1-0        |   6000 | succeeded | 
+ 10 |                 3 | g5b-r1-0        |   3000 | succeeded | 
+ 11 |                 3 | g5b-r1-1        |   3000 | succeeded | 
+ 12 |                 3 | g5b-r1-2        |   3000 | succeeded | 
+  1 |                 4 | g5a-r1-2        |   1002 | succeeded | 
+  2 |                 4 | g5a-r1-5        |   1005 | succeeded | 
+  3 |                 4 | g5a-r1-4        |   1004 | succeeded | 
+  4 |                 4 | g5a-r1-0        |   1000 | succeeded | 
+  5 |                 4 | g5a-r1-3        |   1003 | succeeded | 
+  6 |                 4 | g5a-r1-1        |   1001 | succeeded | 
+  7 |                 4 | g5a-r1-7        |   1007 | succeeded | 
+  8 |                 4 | g5a-r1-8        |   1008 | succeeded | 
+  9 |                 4 | g5a-r1-9        |   1009 | succeeded | 
+(14 rows)
+

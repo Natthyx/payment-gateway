@@ -1,0 +1,13 @@
+# B5 retryable failure (no intent for the transaction yet) is retried with backoff @ 2026-10-28T18:10:32Z (local, single machine, PROVIDER_MODE=mock, commit 633fe7b)
+webhook for unknown transaction -> HTTP 200
+ status  | attempts | next_attempt_in_s |                           last_error                           
+---------+----------+-------------------+----------------------------------------------------------------
+ pending |        1 |                30 | no payment intent for stripe transaction "mock_does_not_exist"
+(1 row)
+
+after 12 more seconds (one worker tick):
+ status  | attempts 
+---------+----------
+ pending |        1
+(1 row)
+

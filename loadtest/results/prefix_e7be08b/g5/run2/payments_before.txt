@@ -1,0 +1,8 @@
+ id | amount |  status   
+----+--------+-----------
+  1 |  10000 | succeeded
+  2 |  10000 | succeeded
+  3 |  10000 | succeeded
+  4 |  10000 | succeeded
+(4 rows)
+

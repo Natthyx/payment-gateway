@@ -1,0 +1,2 @@
+delivery_wall_s=1.051
+wall_end_of_delivery_to_zero_pending_s=5.660  (polled every ~1 s; includes waiting for the 10 s worker tick)

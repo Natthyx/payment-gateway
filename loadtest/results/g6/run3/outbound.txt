@@ -1,0 +1,30 @@
+Pager usage is off.
+== deliveries by endpoint and status
+ endpoint |  status   | count | min_attempts | max_attempts 
+----------+-----------+-------+--------------+--------------
+ dead     | dead      |    10 |            8 |            8
+ flaky    | delivered |   100 |            1 |            5
+(2 rows)
+
+== attempt-count distribution (flaky endpoint)
+ attempts |  status   | count 
+----------+-----------+-------
+        1 | delivered |    72
+        2 | delivered |    19
+        3 | delivered |     6
+        4 | delivered |     2
+        5 | delivered |     1
+(5 rows)
+
+== flaky drain time from DB clocks (enqueue of first delivery -> last delivered_at)
+ deliveries | delivered | first_enqueue_to_last_delivered_s | median_enqueue_to_delivered_s | max_enqueue_to_delivered_s 
+------------+-----------+-----------------------------------+-------------------------------+----------------------------
+        100 |       100 |                             475.2 |                           5.2 |                      475.0
+(1 row)
+
+== one delivery row per succeeded payment and endpoint (duplicates must be 0)
+ payments_with_more_than_one_delivery 
+--------------------------------------
+                                    0
+(1 row)
+

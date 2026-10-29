@@ -1,0 +1,8 @@
+{
+  "intents": 1000,
+  "unique_events": 1051,
+  "extra_event_ids": 51,
+  "planned_deliveries": 3144,
+  "seed": 2,
+  "two_instances": true
+}

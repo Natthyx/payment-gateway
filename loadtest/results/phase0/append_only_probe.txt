@@ -1,0 +1,200 @@
+-- g7_append_only.sql @ 2026-10-28T17:04:59Z
+Pager usage is off.
+== 1. Who is the app, who owns the tables, what protects them
+SELECT current_user AS app_role, r.rolsuper AS is_superuser, r.rolbypassrls
+FROM pg_roles r WHERE r.rolname = current_user;
+ app_role | is_superuser | rolbypassrls 
+----------+--------------+--------------
+ gateway  | t            | t
+(1 row)
+
+SELECT tablename, tableowner FROM pg_tables WHERE tablename IN ('ledger_entries', 'audit_log') ORDER BY 1;
+   tablename    | tableowner 
+----------------+------------
+ audit_log      | gateway
+ ledger_entries | gateway
+(2 rows)
+
+SELECT tgrelid::regclass AS table_name, tgname, tgenabled,
+       CASE WHEN tgtype & 2 = 2 THEN 'BEFORE' ELSE 'AFTER' END AS timing,
+       CASE WHEN tgtype & 1 = 1 THEN 'ROW' ELSE 'STATEMENT' END AS level
+FROM pg_trigger WHERE NOT tgisinternal AND tgrelid::regclass::text IN ('ledger_entries', 'audit_log') ORDER BY 1, 2;
+   table_name   |        tgname        | tgenabled | timing | level 
+----------------+----------------------+-----------+--------+-------
+ ledger_entries | trg_no_delete_ledger | O         | BEFORE | ROW
+ ledger_entries | trg_no_update_ledger | O         | BEFORE | ROW
+ audit_log      | trg_no_delete_audit  | O         | BEFORE | ROW
+ audit_log      | trg_no_update_audit  | O         | BEFORE | ROW
+(4 rows)
+
+explicit grants / revokes on the tables (empty = no REVOKE was ever issued; owner has all rights):
+SELECT table_name, grantee, string_agg(privilege_type, ',' ORDER BY privilege_type) AS privileges
+FROM information_schema.role_table_grants WHERE table_name IN ('ledger_entries', 'audit_log')
+GROUP BY 1, 2 ORDER BY 1, 2;
+   table_name   | grantee |                       privileges                        
+----------------+---------+---------------------------------------------------------
+ audit_log      | gateway | DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+ ledger_entries | gateway | DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+(2 rows)
+
+== 2. Seed one probe row in each table if empty (INSERT is allowed by design)
+INSERT INTO audit_log (actor, action, target) SELECT 'system:g7', 'g7.probe', 'g7'
+WHERE NOT EXISTS (SELECT 1 FROM audit_log);
+INSERT 0 1
+SELECT 'ledger_entries' AS t, count(*) FROM ledger_entries UNION ALL SELECT 'audit_log', count(*) FROM audit_log;
+       t        | count 
+----------------+-------
+ ledger_entries |     3
+ audit_log      |     1
+(2 rows)
+
+== 3. ledger_entries as app role (= table owner = superuser)
+-- 3a UPDATE
+BEGIN;
+BEGIN
+UPDATE ledger_entries SET amount = amount + 1 WHERE id = (SELECT min(id) FROM ledger_entries);
+ROLLBACK;
+ERROR:  ledger_entries is append-only. Modifications are not permitted.
+CONTEXT:  PL/pgSQL function prevent_ledger_modification() line 3 at RAISE
+ROLLBACK
+-- 3b DELETE
+BEGIN;
+BEGIN
+DELETE FROM ledger_entries WHERE id = (SELECT min(id) FROM ledger_entries);
+ROLLBACK;
+ERROR:  ledger_entries is append-only. Modifications are not permitted.
+CONTEXT:  PL/pgSQL function prevent_ledger_modification() line 3 at RAISE
+ROLLBACK
+-- 3c TRUNCATE (row-level triggers do not fire on TRUNCATE)
+BEGIN;
+BEGIN
+TRUNCATE ledger_entries;
+TRUNCATE TABLE
+SELECT count(*) AS rows_after_truncate FROM ledger_entries;
+ rows_after_truncate 
+---------------------
+                   0
+(1 row)
+
+ROLLBACK;
+ROLLBACK
+-- 3d owner disables the trigger, then UPDATE
+BEGIN;
+BEGIN
+ALTER TABLE ledger_entries DISABLE TRIGGER trg_no_update_ledger;
+ALTER TABLE
+UPDATE ledger_entries SET amount = amount + 1 WHERE id = (SELECT min(id) FROM ledger_entries);
+UPDATE 1
+ROLLBACK;
+ROLLBACK
+-- 3e superuser session_replication_role=replica (skips ordinary triggers), then DELETE
+BEGIN;
+BEGIN
+SET LOCAL session_replication_role = replica;
+SET
+DELETE FROM ledger_entries WHERE id = (SELECT min(id) FROM ledger_entries);
+DELETE 1
+ROLLBACK;
+ROLLBACK
+== 4. audit_log as app role (= table owner = superuser)
+-- 4a UPDATE
+BEGIN;
+BEGIN
+UPDATE audit_log SET action = 'tampered' WHERE id = (SELECT min(id) FROM audit_log);
+ERROR:  audit_log is append-only. Modifications are not permitted.
+CONTEXT:  PL/pgSQL function prevent_audit_modification() line 3 at RAISE
+ROLLBACK;
+ROLLBACK
+-- 4b DELETE
+BEGIN;
+BEGIN
+DELETE FROM audit_log WHERE id = (SELECT min(id) FROM audit_log);
+ERROR:  audit_log is append-only. Modifications are not permitted.
+CONTEXT:  PL/pgSQL function prevent_audit_modification() line 3 at RAISE
+ROLLBACK;
+ROLLBACK
+-- 4c TRUNCATE
+BEGIN;
+BEGIN
+TRUNCATE audit_log;
+TRUNCATE TABLE
+SELECT count(*) AS rows_after_truncate FROM audit_log;
+ rows_after_truncate 
+---------------------
+                   0
+(1 row)
+
+ROLLBACK;
+ROLLBACK
+-- 4d owner disables the trigger, then UPDATE
+BEGIN;
+BEGIN
+ALTER TABLE audit_log DISABLE TRIGGER trg_no_update_audit;
+ALTER TABLE
+UPDATE audit_log SET action = 'tampered' WHERE id = (SELECT min(id) FROM audit_log);
+UPDATE 1
+ROLLBACK;
+ROLLBACK
+== 5. For comparison only (NOT the current setup): a non-owner role with SELECT, INSERT
+-- 5a UPDATE ledger_entries
+BEGIN;
+BEGIN
+CREATE ROLE lt_g7_probe NOLOGIN;
+CREATE ROLE
+GRANT SELECT, INSERT ON ledger_entries, audit_log TO lt_g7_probe;
+GRANT
+SET LOCAL ROLE lt_g7_probe;
+SET
+UPDATE ledger_entries SET amount = amount + 1 WHERE id = (SELECT min(id) FROM ledger_entries);
+ERROR:  permission denied for table ledger_entries
+ROLLBACK;
+ROLLBACK
+-- 5b TRUNCATE ledger_entries
+BEGIN;
+BEGIN
+CREATE ROLE lt_g7_probe NOLOGIN;
+CREATE ROLE
+GRANT SELECT, INSERT ON ledger_entries, audit_log TO lt_g7_probe;
+GRANT
+SET LOCAL ROLE lt_g7_probe;
+SET
+TRUNCATE ledger_entries;
+ERROR:  permission denied for table ledger_entries
+ROLLBACK;
+ROLLBACK
+-- 5c DELETE audit_log
+BEGIN;
+BEGIN
+CREATE ROLE lt_g7_probe NOLOGIN;
+CREATE ROLE
+GRANT SELECT, INSERT ON ledger_entries, audit_log TO lt_g7_probe;
+GRANT
+SET LOCAL ROLE lt_g7_probe;
+SET
+DELETE FROM audit_log WHERE id = (SELECT min(id) FROM audit_log);
+ERROR:  permission denied for table audit_log
+ROLLBACK;
+ROLLBACK
+== 6. State after all attempts (must equal section 2: everything was rolled back)
+SELECT 'ledger_entries' AS t, count(*) FROM ledger_entries UNION ALL SELECT 'audit_log', count(*) FROM audit_log;
+       t        | count 
+----------------+-------
+ ledger_entries |     3
+ audit_log      |     1
+(2 rows)
+
+SELECT tgname, tgenabled FROM pg_trigger WHERE NOT tgisinternal AND tgrelid::regclass::text IN ('ledger_entries', 'audit_log') ORDER BY 1;
+        tgname        | tgenabled 
+----------------------+-----------
+ trg_no_delete_audit  | O
+ trg_no_delete_ledger | O
+ trg_no_update_audit  | O
+ trg_no_update_ledger | O
+(4 rows)
+
+SELECT count(*) AS leftover_probe_roles FROM pg_roles WHERE rolname = 'lt_g7_probe';
+ leftover_probe_roles 
+----------------------
+                    0
+(1 row)
+

@@ -1,0 +1,20 @@
+# B2 GET endpoints for a normal processing intent (failure_reason IS NULL) @ 2026-10-28T18:09:44Z (local, single machine, PROVIDER_MODE=mock, commit 633fe7b)
+POST /payments -> {"success":true,"id":1,"status":"processing"}
+--- GET /payments/1
+{"success":true,"data":{"id":1,"merchant_id":1,"idempotency_key":"p0-1","amount":1050,"currency":"USD","provider":"stripe","status":"processing","provider_tx_id":"mock_af19465becf2089bda596229","created_at":"2026-10-28T18:09:44.241783Z","updated_at":"2026-10-28T18:09:44.244678Z"}}
+
+HTTP 200
+--- GET /payments
+{"success":true,"data":[{"id":1,"merchant_id":1,"idempotency_key":"p0-1","amount":1050,"currency":"USD","provider":"stripe","status":"processing","provider_tx_id":"mock_af19465becf2089bda596229","created_at":"2026-10-28T18:09:44.241783Z","updated_at":"2026-10-28T18:09:44.244678Z"}],"meta":{"total":1,"page":0,"limit":0}}
+
+HTTP 200
+--- GET /payments/1/ledger
+{"success":true,"data":null}
+
+HTTP 200
+ id |   status   |        provider_tx_id         | failure_reason_is_null 
+----+------------+-------------------------------+------------------------
+  1 | processing | mock_af19465becf2089bda596229 | t
+(1 row)
+
+--- app log:

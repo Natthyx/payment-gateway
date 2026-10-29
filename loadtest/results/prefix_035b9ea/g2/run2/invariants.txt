@@ -1,0 +1,27 @@
+Pager usage is off.
+== intents created by G2 (expected = K)
+ g2_intents | expected | ok 
+------------+----------+----
+        500 |      500 | t
+(1 row)
+
+== duplicate intents per (merchant, idempotency_key) — must be 0
+ duplicate_groups 
+------------------
+                0
+(1 row)
+
+== intents whose amount came from the different-body request — must be 0
+   (each key i was first sent with amount 1000+i; the probe used 1001+i)
+ intents_with_probe_amount 
+---------------------------
+                         0
+(1 row)
+
+== status distribution
+   status   | count 
+------------+-------
+ processing |   500
+(1 row)
+
+== provider charge calls vs intents (mock counter is read separately from /metrics)

@@ -1,0 +1,9 @@
+1793254806,lt_gateway_app,30.06%,29.56MiB / 7.751GiB
+1793254806,lt_gateway_postgres,40.42%,74.06MiB / 7.751GiB
+1793254806,lt_gateway_redis,0.76%,10.18MiB / 7.751GiB
+1793254808,lt_gateway_app,0.02%,29.54MiB / 7.751GiB
+1793254808,lt_gateway_postgres,0.08%,73.32MiB / 7.751GiB
+1793254808,lt_gateway_redis,1.02%,9.93MiB / 7.751GiB
+1793254810,lt_gateway_app,12.13%,30.06MiB / 7.751GiB
+1793254810,lt_gateway_postgres,29.08%,74.91MiB / 7.751GiB
+1793254810,lt_gateway_redis,0.94%,9.934MiB / 7.751GiB
