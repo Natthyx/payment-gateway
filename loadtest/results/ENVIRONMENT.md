@@ -39,7 +39,7 @@ overrides noted below. `.env` is not loaded.
 | `DATABASE_URL` | `gateway_runtime` role, random password | compose: `gateway_runtime` | least-privilege runtime role |
 | `BASE_CALLBACK_URL` | `https://gateway.loadtest.invalid` | — | required, unused by the mock |
 | `SSL_CERT_FILE` (G6 only) | throwaway test CA | image default | the fake merchant receiver uses a self-signed cert |
-| `AUTH_CACHE_TTL`, `TRUST_PROXY_HEADERS` | unchanged: `30s`, `false` | `30s`, `false` | |
+| `AUTH_CACHE_TTL`, `TRUST_PROXY_HEADERS` | unchanged: `30s`, `false` | `30s`, `false` | `TRUST_PROXY_HEADERS` was replaced by `TRUSTED_PROXIES` (default empty) after the measured runs; both defaults ignore client-supplied IP headers |
 
 Every run is preceded by `docker compose -p gwloadtest down -v`, so each run starts with an
 empty Postgres volume and an empty Redis.

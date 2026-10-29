@@ -30,7 +30,7 @@ All runs: local, single machine (Apple M2, 8 GB; Docker Desktop VM 8 CPUs), `PRO
 | R5 cross-merchant intent match | `87e0367` | `results/fixes/r5_cross_merchant.txt` |
 | R6 different body replays the original | `87e0367` (migration 009) | G2: before 500/500 replayed (`results/prefix_035b9ea/g2/`), after 500/500 rejected (`results/g2/`) |
 | R7 provider failure burns key / ignored update error | `87e0367` | code: `internal/payment/service.go` (`replayExisting`); not load-tested |
-| R8 per-IP limit bypass via `X-Real-IP` | `87e0367` | G9 part C: before 300/300 allowed (`results/prefix_035b9ea/g9/`), after 27/300 |
+| R8 per-IP limit bypass via `X-Real-IP` | `87e0367`; hardened later to `TRUSTED_PROXIES` (CI fix commit, not re-measured) | G9 part C: before 300/300 allowed (`results/prefix_035b9ea/g9/`), after 27/300 |
 | R9 bcrypt on every request; fixed window | `87e0367`, `633fe7b` | G3 throughput; G9 part A |
 | R10 empty webhook secret accepted | `87e0367` | unit test `TestVerifyWebhookRejectsEmptySecret` |
 | R11 HTTP call inside DB tx; missing events | `87e0367` | G6 (lease-based worker); G10 (reconciler now enqueues) |

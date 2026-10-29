@@ -48,10 +48,10 @@ type Config struct {
 	// Limits
 	RateLimitPerMerchantPerMinute int
 	IPRateLimitPerMinute          int
-	// TrustProxyHeaders makes the gateway take the client IP from
-	// X-Real-IP / X-Forwarded-For. Enable only behind a proxy that sets them;
-	// otherwise any client can pick its own IP and dodge the per-IP limit.
-	TrustProxyHeaders bool
+	// TrustedProxies lists proxy networks (CIDRs or IPs) whose
+	// X-Forwarded-For header is believed. Empty: the header is ignored and
+	// the per-IP limit uses the TCP peer address.
+	TrustedProxies []string
 	// AuthCacheTTL caches successful API-key checks in-process so bcrypt does
 	// not run on every request. A rotated key keeps working on other
 	// instances for at most this long. 0 disables the cache.
@@ -87,7 +87,7 @@ func Load() (*Config, error) {
 		FeePercent:                    getFloat("FEE_PERCENT", 0.029),
 		RateLimitPerMerchantPerMinute: getInt("RATE_LIMIT_PER_MERCHANT", 600),
 		IPRateLimitPerMinute:          getInt("IP_RATE_LIMIT_PER_MINUTE", 200),
-		TrustProxyHeaders:             getEnv("TRUST_PROXY_HEADERS", "false") == "true",
+		TrustedProxies:                strings.Split(getEnv("TRUSTED_PROXIES", ""), ","),
 		AuthCacheTTL:                  getDuration("AUTH_CACHE_TTL", 30*time.Second),
 		OutboundWebhookSigningSecret:  mustGetEnv("OUTBOUND_WEBHOOK_SIGNING_SECRET"),
 		ProviderMode:                  strings.ToLower(getEnv("PROVIDER_MODE", "real")),

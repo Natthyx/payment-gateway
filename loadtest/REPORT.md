@@ -1,7 +1,10 @@
 # Payment gateway — load test and correctness report
 
 **Build measured:** commit `633fe7b` on branch `loadtest/benchmark` (all fixes from
-[`FINDINGS.md`](FINDINGS.md) applied). **Pre-fix comparison:** see "Before vs after".
+[`FINDINGS.md`](FINDINGS.md) applied). **Not re-measured:** the later CI fix commit, which removes
+dead code, upgrades dependencies flagged by govulncheck (chi 5.3.0, pgx 5.9.2, go-redis 9.6.3,
+x/text 0.41.0), builds with Go 1.26, and replaces the proxy-header flag with `TRUSTED_PROXIES`.
+Treat the numbers below as describing `633fe7b`. **Pre-fix comparison:** see "Before vs after".
 **Environment:** [`results/ENVIRONMENT.md`](results/ENVIRONMENT.md). Every number is
 **local, single machine** (Apple M2, 8 GB). The load generator, the gateway, Postgres and Redis
 share the same 8 cores. These numbers compare scenarios with each other; they are not a

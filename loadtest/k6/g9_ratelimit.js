@@ -4,7 +4,7 @@
 //      run.sh just after a minute boundary so all requests share one window.
 //   B) per-IP limiter (200/min, hard-coded): 300 GET /health from one client IP.
 //   C) same as B but each request claims a different X-Real-IP. With
-//      TRUST_PROXY_HEADERS=false (default) the header must be ignored.
+//      no trusted proxies configured (default) the header must be ignored.
 import http from 'k6/http';
 import { Counter } from 'k6/metrics';
 import { APP_URL, STATE, TREND_STATS, authHeaders, fakeIP, recordStatus, touch, writeSummary } from './lib/common.js';

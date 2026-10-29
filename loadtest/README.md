@@ -51,7 +51,8 @@ loadtest/run.sh down            # remove the test stack and its volume
 
 Test-only configuration (`docker-compose*.yml` in this directory) is listed in
 [`results/ENVIRONMENT.md`](results/ENVIRONMENT.md). k6 still sends a random `X-Real-IP`.
-The fixed gateway ignores that header unless `TRUST_PROXY_HEADERS=true`, so instead the
+The fixed gateway ignores that header (it trusts `X-Forwarded-For` only from `TRUSTED_PROXIES`,
+empty by default), so instead the
 override raises `IP_RATE_LIMIT_PER_MINUTE`. G9 tests the default 200/min.
 
 ## Scenarios

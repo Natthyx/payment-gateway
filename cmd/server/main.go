@@ -110,11 +110,13 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Logger)
-	// Only trust client-IP headers when a proxy we control sets them;
-	// otherwise any client could choose its own IP for the per-IP limit.
-	if cfg.TrustProxyHeaders {
-		r.Use(chiMiddleware.RealIP)
+	// Client IP for the per-IP limit: X-Forwarded-For is believed only from
+	// TRUSTED_PROXIES, so a client cannot choose its own IP.
+	trustedProxies, err := middleware.NewTrustedProxies(cfg.TrustedProxies)
+	if err != nil {
+		log.Fatal().Err(err).Msg("invalid TRUSTED_PROXIES")
 	}
+	r.Use(trustedProxies.Handler)
 	r.Use(chiMiddleware.RequestID)
 	r.Use(httprate.Limit(cfg.IPRateLimitPerMinute, time.Minute,
 		httprate.WithKeyFuncs(httprate.KeyByIP),

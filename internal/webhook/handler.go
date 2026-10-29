@@ -11,7 +11,6 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/Natthyx/payment-gateway/internal/metrics"
-	"github.com/Natthyx/payment-gateway/internal/models"
 )
 
 type Handler struct {
@@ -123,14 +122,4 @@ func webhookSignatureHeader(r *http.Request, provider string) string {
 	default:
 		return ""
 	}
-}
-
-func respond(w http.ResponseWriter, status int, success bool, data interface{}, errMsg string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(models.APIResponse{
-		Success: success,
-		Data:    data,
-		Error:   errMsg,
-	})
 }
