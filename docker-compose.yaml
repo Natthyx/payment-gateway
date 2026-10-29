@@ -6,10 +6,13 @@ services:
       POSTGRES_USER: gateway
       POSTGRES_PASSWORD: gateway_secret
       POSTGRES_DB: gateway_db
+      # Password of the least-privilege runtime role (deploy/postgres/initdb).
+      GATEWAY_RUNTIME_PASSWORD: ${GATEWAY_RUNTIME_PASSWORD:-gateway_runtime_secret}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./deploy/postgres/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gateway -d gateway_db"]
       interval: 5s
@@ -35,7 +38,9 @@ services:
     container_name: gateway_app
     env_file: .env
     environment:
-      DATABASE_URL: postgres://gateway:gateway_secret@postgres:5432/gateway_db?sslmode=disable
+      # Runtime: least-privilege role. Migrations: table owner.
+      DATABASE_URL: postgres://gateway_runtime:${GATEWAY_RUNTIME_PASSWORD:-gateway_runtime_secret}@postgres:5432/gateway_db?sslmode=disable
+      MIGRATIONS_DATABASE_URL: postgres://gateway:gateway_secret@postgres:5432/gateway_db?sslmode=disable
       REDIS_ADDR: redis:6379
     ports:
       - "8080:8080"

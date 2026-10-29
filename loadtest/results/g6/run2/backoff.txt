@@ -1,0 +1,17 @@
+== flaky endpoint: real-time gap between attempt n and n+1 (seconds)
+ n expected_backoff samples      min   median      max
+ 1               30      32    34.95    34.96    34.96
+ 2               60       9    64.98    65.00    65.01
+ 3              120       4   125.02   125.02   125.03
+
+== dead endpoint: backoff scheduled by the gateway after attempt n (next_attempt_at - arrival of attempt n, seconds)
+ n expected samples      min   median      max
+ 1       30      10    30.00    30.00    30.00
+ 2       60      10    60.00    60.00    60.00
+ 3      120      10   120.00   120.00   120.00
+ 4      240      10   240.00   240.00   240.00
+ 5      480      10   480.00   480.00   480.00
+ 6      960      10   960.00   960.00   960.01
+ 7     1920      10  1920.00  1920.00  1920.00
+
+== dead endpoint: attempts received per delivery: [8] over 10 deliveries

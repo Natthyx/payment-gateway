@@ -1,0 +1,58 @@
+# captured 2026-10-28T18:09:21Z
+## host
+ProductName:		macOS
+ProductVersion:		26.3
+BuildVersion:		25D125
+Apple M2
+hw.memsize=8589934592
+hw.ncpu=8
+## docker
+server 28.5.1 client 28.5.1
+Docker Compose version v2.40.2-desktop.1
+VM CPUs=8 VM MemTotal=8322969600 OS=Docker Desktop Kernel=6.10.14-linuxkit
+## k6
+k6 v2.3.0 (commit/devel, go1.27.1, darwin/arm64)
+## go (host)
+go version go1.26.3 darwin/arm64
+## go (app image builder)
+go version go1.24.13 linux/arm64
+## postgres
+PostgreSQL 16.15 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+## redis
+redis_version:7.4.12
+## git
+633fe7b9cb06b27fb007d9a1fff9409a2a506c9e
+633fe7b fix(auth): collapse concurrent auth-cache misses with singleflight
+51b1487 style: gofmt -s the module so the CI gofmt check can pass
+557b272 fix(db): enforce append-only ledger and audit log against the app role
+87e0367 fix: address load-test findings (B2, B3, B5, R1-R13)
+dirty files (app code):
+## container limits (0 = no limit)
+lt_gateway_app NanoCpus=0 Memory=0
+lt_gateway_postgres NanoCpus=0 Memory=0
+lt_gateway_redis NanoCpus=0 Memory=0
+## app container environment (secrets redacted)
+
+BASE_CALLBACK_URL=https://gateway.loadtest.invalid
+CHAPA_SECRET_KEY=<throwaway, redacted>
+DATABASE_URL=postgres://gateway_runtime:<redacted>@postgres:5432/gateway_db?sslmode=disable
+ENV=test
+IP_RATE_LIMIT_PER_MINUTE=1000000
+LOG_LEVEL=warn
+MIGRATIONS_DATABASE_URL=postgres://gateway:<redacted>@postgres:5432/gateway_db?sslmode=disable
+MIGRATIONS_PATH=file:///migrations
+MOCK_PROVIDER_LATENCY=0s
+MOCK_PROVIDER_TX_STATUS=pending
+OUTBOUND_WEBHOOK_SIGNING_SECRET=<throwaway, redacted>
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+PORT=8080
+PROVIDER_MODE=mock
+RATE_LIMIT_PER_MERCHANT=1000000
+REDIS_ADDR=redis:6379
+SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=<throwaway, redacted>
+TELEBIRR_APP_ID=
+TELEBIRR_APP_KEY=<throwaway, redacted>
+TELEBIRR_PUBLIC_KEY=
+TELEBIRR_SHORT_CODE=

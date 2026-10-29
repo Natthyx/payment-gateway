@@ -1,0 +1,90 @@
+Pager usage is off.
+== per payment: refunds by status, total succeeded vs payment amount
+ payment_id | amount | payment_status | refunds_succeeded | refunds_pending | refunds_failed | refunded_total | ok_not_over_refunded 
+------------+--------+----------------+-------------------+-----------------+----------------+----------------+----------------------
+          1 |  10000 | succeeded      |                 1 |               0 |              0 |           2000 | t
+          2 |  10000 | succeeded      |                20 |               0 |              0 |          20190 | f
+          3 |  10000 | succeeded      |                 1 |              19 |              0 |           3000 | t
+          4 |  10000 | succeeded      |                 2 |               0 |              0 |          12001 | f
+(4 rows)
+
+== INVARIANT: payments where succeeded refunds exceed the amount (must be 0)
+ over_refunded_payments 
+------------------------
+                      2
+(1 row)
+
+== INVARIANT: refund rows per idempotency key (must be 1 each)
+ idempotency_key | count 
+-----------------+-------
+ g5c-r2          |     1
+(1 row)
+
+== INVARIANT: ledger balanced overall and per payment
+ ledger_sum 
+------------
+          0
+(1 row)
+
+ unbalanced_payments 
+---------------------
+                   0
+(1 row)
+
+== ledger refund legs vs succeeded refunds, per payment
+ payment_id | refunds_succeeded | refund_debit_legs | ledger_refunded_total | merchant_net_for_payment 
+------------+-------------------+-------------------+-----------------------+--------------------------
+          1 |                 1 |                 1 |                  2000 |                     7710
+          2 |                20 |                20 |                 20190 |                   -10480
+          3 |                 1 |                 1 |                  3000 |                     6710
+          4 |                 2 |                 2 |                 12001 |                    -2291
+(4 rows)
+
+== refund rows (all)
+ id | payment_intent_id | idempotency_key | amount |  status   | failure_reason 
+----+-------------------+-----------------+--------+-----------+----------------
+ 40 |                 1 | g5c-r2          |   2000 | succeeded | 
+  1 |                 2 | g5a-r2-1        |   1001 | succeeded | 
+  2 |                 2 | g5a-r2-4        |   1004 | succeeded | 
+  3 |                 2 | g5a-r2-5        |   1005 | succeeded | 
+  4 |                 2 | g5a-r2-2        |   1002 | succeeded | 
+  5 |                 2 | g5a-r2-3        |   1003 | succeeded | 
+  6 |                 2 | g5a-r2-0        |   1000 | succeeded | 
+  7 |                 2 | g5a-r2-9        |   1009 | succeeded | 
+  8 |                 2 | g5a-r2-7        |   1007 | succeeded | 
+  9 |                 2 | g5a-r2-11       |   1011 | succeeded | 
+ 10 |                 2 | g5a-r2-8        |   1008 | succeeded | 
+ 11 |                 2 | g5a-r2-10       |   1010 | succeeded | 
+ 12 |                 2 | g5a-r2-6        |   1006 | succeeded | 
+ 13 |                 2 | g5a-r2-12       |   1012 | succeeded | 
+ 14 |                 2 | g5a-r2-16       |   1016 | succeeded | 
+ 15 |                 2 | g5a-r2-13       |   1013 | succeeded | 
+ 16 |                 2 | g5a-r2-17       |   1017 | succeeded | 
+ 17 |                 2 | g5a-r2-14       |   1014 | succeeded | 
+ 18 |                 2 | g5a-r2-15       |   1015 | succeeded | 
+ 19 |                 2 | g5a-r2-18       |   1018 | succeeded | 
+ 20 |                 2 | g5a-r2-19       |   1019 | succeeded | 
+ 21 |                 3 | g5b-r2-0        |   3000 | succeeded | 
+ 22 |                 3 | g5b-r2-2        |   3000 | pending   | 
+ 23 |                 3 | g5b-r2-3        |   3000 | pending   | 
+ 24 |                 3 | g5b-r2-1        |   3000 | pending   | 
+ 25 |                 3 | g5b-r2-5        |   3000 | pending   | 
+ 26 |                 3 | g5b-r2-4        |   3000 | pending   | 
+ 27 |                 3 | g5b-r2-6        |   3000 | pending   | 
+ 28 |                 3 | g5b-r2-7        |   3000 | pending   | 
+ 29 |                 3 | g5b-r2-9        |   3000 | pending   | 
+ 30 |                 3 | g5b-r2-8        |   3000 | pending   | 
+ 31 |                 3 | g5b-r2-10       |   3000 | pending   | 
+ 32 |                 3 | g5b-r2-12       |   3000 | pending   | 
+ 33 |                 3 | g5b-r2-11       |   3000 | pending   | 
+ 34 |                 3 | g5b-r2-15       |   3000 | pending   | 
+ 35 |                 3 | g5b-r2-13       |   3000 | pending   | 
+ 36 |                 3 | g5b-r2-14       |   3000 | pending   | 
+ 37 |                 3 | g5b-r2-16       |   3000 | pending   | 
+ 38 |                 3 | g5b-r2-18       |   3000 | pending   | 
+ 39 |                 3 | g5b-r2-17       |   3000 | pending   | 
+ 41 |                 3 | g5b-r2-19       |   3000 | pending   | 
+ 51 |                 4 | g5d-r2-0        |   6000 | succeeded | 
+ 52 |                 4 | g5d-r2-1        |   6001 | succeeded | 
+(43 rows)
+

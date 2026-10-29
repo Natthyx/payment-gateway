@@ -1,0 +1,2 @@
+# Throwaway secrets, merchant API keys, TLS material and seeded fixtures.
+.state/

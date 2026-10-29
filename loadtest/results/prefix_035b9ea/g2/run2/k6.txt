@@ -1,0 +1,44 @@
+test duration: 260.8 s
+data_received                                    rate=11312.959 count=2950715
+data_sent                                        count=1839648 rate=7053.159
+g2_409_code_idempotency_conflict                 count=1144 rate=4.386
+g2_409_code_idempotency_key_in_use               count=0 rate=0
+g2_diffbody_201_new_intent                       count=0 rate=0
+g2_diffbody_201_replayed_original                count=500 rate=1.917
+g2_diffbody_409_idempotency_conflict             count=0 rate=0
+g2_diffbody_other_status                         rate=0 count=0
+g2_keys_all_201_identical_body                   count=73 rate=0.28
+g2_keys_with_409                                 count=427 rate=1.637
+g2_keys_with_different_intent_ids                rate=0 count=0
+g2_keys_with_no_201                              count=0 rate=0
+g2_keys_with_non_201_non_409                     count=0 rate=0
+http_req_blocked                                 med=0.004 avg=0.066 p(90)=0.039 p(95)=0.086 p(99)=0.87 max=27.165 count=5500 min=0
+http_req_connecting                              p(99)=0.548 max=27.143 count=5500 min=0 med=0 avg=0.039 p(90)=0 p(95)=0
+http_req_duration                                max=9555.988 count=5500 min=339.084 med=3737.389 avg=3879.187 p(90)=5858.135 p(95)=6753.308 p(99)=7826.661
+http_req_duration{expected_response:true}        med=3654.683 avg=3818.857 p(90)=5906.064 p(95)=6795.242 p(99)=7907.571 max=9555.988 count=4356 min=339.084
+http_req_duration{kind:diffbody}                 p(95)=4825.482 p(99)=6005.215 max=7538.016 count=500 min=339.084 med=2023.83 avg=2403.453 p(90)=4034.819
+http_req_duration{kind:identical}                avg=4026.76 p(90)=5968.245 p(95)=6813.794 p(99)=7939.315 max=9555.988 count=5000 min=550.214 med=3848.046
+http_req_failed                                  rate=0.208 passes=1144 fails=4356
+http_req_receiving                               max=10.03 count=5500 min=0.009 med=0.069 avg=0.142 p(90)=0.162 p(95)=0.235 p(99)=2.101
+http_req_sending                                 max=22.745 count=5500 min=0.002 med=0.018 avg=0.113 p(90)=0.047 p(95)=0.074 p(99)=1.373
+http_req_tls_handshaking                         p(95)=0 p(99)=0 max=0 count=5500 min=0 med=0 avg=0 p(90)=0
+http_req_waiting                                 max=9555.922 count=5500 min=338.975 med=3737.303 avg=3878.932 p(90)=5858.061 p(95)=6753.077 p(99)=7822.541
+http_reqs                                        rate=21.087 count=5500
+iteration_duration                               min=2745.451 med=8950.688 avg=10403.944 p(90)=15325.49 p(95)=17144.003 p(99)=18572.424 max=19188.73 count=500
+iterations                                       count=500 rate=1.917
+status_0_no_response                             count=0 rate=0
+status_200                                       count=0 rate=0
+status_201                                       rate=16.701 count=4356
+status_204                                       count=0 rate=0
+status_400                                       count=0 rate=0
+status_401                                       count=0 rate=0
+status_404                                       count=0 rate=0
+status_409                                       count=1144 rate=4.386
+status_429                                       count=0 rate=0
+status_500                                       count=0 rate=0
+status_502                                       count=0 rate=0
+status_503                                       count=0 rate=0
+status_504                                       count=0 rate=0
+status_other                                     count=0 rate=0
+vus                                              value=14 min=14 max=20
+vus_max                                          value=20 min=20 max=20

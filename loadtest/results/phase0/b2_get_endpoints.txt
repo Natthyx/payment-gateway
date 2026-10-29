@@ -1,0 +1,23 @@
+# B2 GET endpoints for a normal processing intent (failure_reason IS NULL) @ 2026-10-28T17:06:56Z (local, single machine, PROVIDER_MODE=mock, commit 4d69316)
+POST /payments -> {"success":true,"id":1,"status":"processing"}
+--- GET /payments/1
+{"success":false,"error_obj":{"code":"internal_error","message":"internal error"}}
+
+HTTP 500
+--- GET /payments
+{"success":false,"error_obj":{"code":"internal_error","message":"internal error"}}
+
+HTTP 500
+--- GET /payments/1/ledger
+{"success":false,"error_obj":{"code":"internal_error","message":"internal error"}}
+
+HTTP 500
+ id |   status   |        provider_tx_id         | failure_reason_is_null 
+----+------------+-------------------------------+------------------------
+  1 | processing | mock_04f86218655920e3c57ae105 | t
+(1 row)
+
+--- app log:
+{"level":"error","error":"loading payment intent: can't scan into dest[8]: cannot scan NULL into *string","path":"/payments/1","time":1793207216,"message":"internal error"}
+{"level":"error","error":"scanning intent: can't scan into dest[8]: cannot scan NULL into *string","path":"/payments","time":1793207217,"message":"internal error"}
+{"level":"error","error":"loading payment intent: can't scan into dest[8]: cannot scan NULL into *string","path":"/payments/1/ledger","time":1793207217,"message":"internal error"}

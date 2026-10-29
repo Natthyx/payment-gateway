@@ -1,0 +1,6 @@
+   status   | count 
+------------+-------
+ created    |    90
+ processing |   203
+(2 rows)
+

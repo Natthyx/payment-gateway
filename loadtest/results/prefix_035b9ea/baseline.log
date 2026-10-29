@@ -1,0 +1,107 @@
+[10:00:36] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+curl: (52) Empty reply from server
+[10:02:43] reset: stack ready
+[10:02:43] === g3 ===
+[10:02:43] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:02:54] reset: stack ready
+[10:04:09] g3 run 1 rate 10 done
+[10:04:09] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:04:18] reset: stack ready
+[10:05:42] g3 run 1 rate 20 done
+[10:05:42] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+curl: (52) Empty reply from server
+[10:06:09] reset: stack ready
+[10:08:01] g3 run 1 rate 30 done
+[10:08:01] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:08:24] reset: stack ready
+[10:10:12] g3 run 1 rate 50 done
+[10:10:12] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+curl: (52) Empty reply from server
+[10:10:49] reset: stack ready
+[10:12:27] g3 run 1 rate 100 done
+[10:12:27] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+curl: (52) Empty reply from server
+[10:12:47] reset: stack ready
+[10:14:05] g3 run 2 rate 10 done
+[10:14:05] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:14:18] reset: stack ready
+[10:15:43] g3 run 2 rate 20 done
+[10:15:43] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:16:01] reset: stack ready
+[10:17:40] g3 run 2 rate 30 done
+[10:17:40] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:17:50] reset: stack ready
+[10:19:14] g3 run 2 rate 50 done
+[10:19:14] reset: down -v (project gwloadtest only)
+[10:19:22] reset: stack ready
+[10:21:14] g3 run 2 rate 100 done
+[10:21:14] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:21:26] reset: stack ready
+[10:22:40] g3 run 3 rate 10 done
+[10:22:40] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:22:49] reset: stack ready
+[10:24:03] g3 run 3 rate 20 done
+[10:24:03] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:24:11] reset: stack ready
+[10:25:31] g3 run 3 rate 30 done
+[10:25:31] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:25:39] reset: stack ready
+[10:27:01] g3 run 3 rate 50 done
+[10:27:01] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:27:09] reset: stack ready
+[10:28:31] g3 run 3 rate 100 done
+[10:28:31] === g2 ===
+[10:28:31] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:28:39] reset: stack ready
+[10:32:53] g2 run 1 done
+[10:32:53] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:33:01] reset: stack ready
+[10:37:38] g2 run 2 done
+[10:37:38] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+curl: (52) Empty reply from server
+curl: (52) Empty reply from server
+curl: (52) Empty reply from server
+[10:38:12] reset: stack ready
+[10:42:59] g2 run 3 done
+[10:42:59] === g9 ===
+[10:42:59] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:43:07] reset: stack ready
+[10:44:52] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:45:00] reset: stack ready
+[10:46:07] g9 run 1 done
+[10:46:07] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:46:15] reset: stack ready
+[10:47:52] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:48:00] reset: stack ready
+[10:49:10] g9 run 2 done
+[10:49:10] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:49:18] reset: stack ready
+[10:50:52] reset: down -v (project gwloadtest only)
+curl: (52) Empty reply from server
+[10:51:00] reset: stack ready
+[10:54:00] g9 run 3 done
+[10:54:00] finished: g3 g2 g9
+035b9ea exit=0

@@ -1,0 +1,5 @@
+   status   | count 
+------------+-------
+ processing |   968
+(1 row)
+

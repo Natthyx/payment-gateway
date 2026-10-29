@@ -1,0 +1,5 @@
+   status   | count 
+------------+-------
+ processing |  3000
+(1 row)
+

@@ -1,0 +1,41 @@
+test duration: 65.2 s
+data_received                                    count=145039 rate=2225.83
+data_sent                                        count=53918 rate=827.448
+g9a_201                                          count=0 rate=0
+g9a_429_other                                    count=0 rate=0
+g9a_429_rate_limit_exceeded                      count=0 rate=0
+g9a_other                                        count=0 rate=0
+g9b_200                                          count=199 rate=3.054
+g9b_429                                          count=101 rate=1.55
+g9b_other                                        rate=0 count=0
+g9c_200                                          count=300 rate=4.604
+g9c_429                                          count=0 rate=0
+g9c_other                                        count=0 rate=0
+http_req_blocked                                 count=600 min=0 med=0.001 avg=0.003 p(90)=0.002 p(95)=0.003 p(99)=0.004 max=0.968
+http_req_connecting                              p(99)=0 max=0.52 count=600 min=0 med=0 avg=0.001 p(90)=0 p(95)=0
+http_req_duration                                p(90)=0.502 p(95)=0.641 p(99)=1.251 max=8.357 count=600 min=0.217 med=0.304 avg=0.373
+http_req_duration{expected_response:true}        min=0.235 med=0.315 avg=0.395 p(90)=0.532 p(95)=0.679 p(99)=1.352 max=8.357 count=499
+http_req_failed                                  passes=101 fails=499 rate=0.168
+http_req_receiving                               p(99)=0.041 max=0.247 count=600 min=0.005 med=0.013 avg=0.014 p(90)=0.02 p(95)=0.026
+http_req_sending                                 p(95)=0.01 p(99)=0.016 max=0.844 count=600 min=0.001 med=0.004 avg=0.006 p(90)=0.009
+http_req_tls_handshaking                         med=0 avg=0 p(90)=0 p(95)=0 p(99)=0 max=0 count=600 min=0
+http_req_waiting                                 count=600 min=0.208 med=0.288 avg=0.352 p(90)=0.475 p(95)=0.613 p(99)=1.23 max=7.266
+http_reqs                                        count=600 rate=9.208
+iteration_duration                               med=0.332 avg=0.416 p(90)=0.543 p(95)=0.708 p(99)=1.423 max=14.455 count=600 min=0.23
+iterations                                       count=600 rate=9.208
+status_0_no_response                             count=0 rate=0
+status_200                                       count=499 rate=7.658
+status_201                                       count=0 rate=0
+status_204                                       count=0 rate=0
+status_400                                       count=0 rate=0
+status_401                                       count=0 rate=0
+status_404                                       count=0 rate=0
+status_409                                       count=0 rate=0
+status_429                                       count=101 rate=1.55
+status_500                                       count=0 rate=0
+status_502                                       count=0 rate=0
+status_503                                       rate=0 count=0
+status_504                                       count=0 rate=0
+status_other                                     count=0 rate=0
+vus                                              min=0 max=0 value=0
+vus_max                                          value=2 min=2 max=2

@@ -1,0 +1,34 @@
+test duration: 0.0 s
+data_received                                    count=3456 rate=91206.587
+data_sent                                        count=6318 rate=166737.042
+g4_deliveries_sent                               count=16 rate=422.253
+g4_deliveries_to_app1                            count=16 rate=422.253
+g4_deliveries_to_app2                            count=0 rate=0
+g4_non_200_responses                             count=0 rate=0
+g4_unique_events_sent                            count=4 rate=105.563
+http_req_blocked                                 med=0.457 avg=0.506 p(90)=0.719 p(95)=0.737 p(99)=0.753 max=0.757 count=16 min=0.356
+http_req_connecting                              p(95)=0.683 p(99)=0.685 max=0.685 count=16 min=0.292 med=0.385 avg=0.434 p(90)=0.647
+http_req_duration                                p(90)=33.813 p(95)=34.803 p(99)=34.807 max=34.808 count=16 min=9.297 med=25.83 avg=22.599
+http_req_duration{expected_response:true}        min=9.297 med=25.83 avg=22.599 p(90)=33.813 p(95)=34.803 p(99)=34.807 max=34.808 count=16
+http_req_failed                                  rate=0 passes=0 fails=16
+http_req_receiving                               avg=0.043 p(90)=0.05 p(95)=0.07 p(99)=0.115 max=0.126 count=16 min=0.022 med=0.038
+http_req_sending                                 max=0.233 count=16 min=0.012 med=0.026 avg=0.05 p(90)=0.115 p(95)=0.17 p(99)=0.22
+http_req_tls_handshaking                         count=16 min=0 med=0 avg=0 p(90)=0 p(95)=0 p(99)=0 max=0
+http_req_waiting                                 avg=22.506 p(90)=33.737 p(95)=34.749 p(99)=34.76 max=34.763 count=16 min=9.141 med=25.777
+http_reqs                                        count=16 rate=422.253
+iteration_duration                               med=35.884 avg=34.795 p(90)=37.177 p(95)=37.378 p(99)=37.539 max=37.579 count=4 min=29.834
+iterations                                       count=4 rate=105.563
+status_0_no_response                             count=0 rate=0
+status_200                                       count=16 rate=422.253
+status_201                                       count=0 rate=0
+status_204                                       count=0 rate=0
+status_400                                       count=0 rate=0
+status_401                                       count=0 rate=0
+status_404                                       rate=0 count=0
+status_409                                       count=0 rate=0
+status_429                                       count=0 rate=0
+status_500                                       count=0 rate=0
+status_502                                       rate=0 count=0
+status_503                                       count=0 rate=0
+status_504                                       rate=0 count=0
+status_other                                     count=0 rate=0

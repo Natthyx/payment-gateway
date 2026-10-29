@@ -1,0 +1,18 @@
+# B1/B5 Stripe-signed webhook through the inbox @ 2026-10-28T17:12:45Z (local, single machine, PROVIDER_MODE=mock, commit e7be08b)
+raw body sent: {"id":"evt_p0_1793207565","type":"payment_intent.succeeded","created":1793207565,"data":{"object":{"id":"mock_04f86218655920e3c57ae105","amount":1050,"currency":"usd"}}}
+{"received":"ok"}
+  HTTP 200
+ id |  status   | attempts | last_error 
+----+-----------+----------+------------
+  1 | processed |        1 | 
+(1 row)
+
+payload as stored (JSONB) and re-read by the worker: {"id": "evt_p0_1793207565", "data": {"object": {"id": "mock_04f86218655920e3c57ae105", "amount": 1050, "currency": "usd"}}, "type": "payment_intent.succeeded", "created": 1793207565}
+HMAC(raw body sent)      == Stripe-Signature v1: yes
+HMAC(stored JSONB text) == Stripe-Signature v1: NO
+ id |  status   
+----+-----------
+  1 | succeeded
+(1 row)
+
+--- B5: worker log lines for this webhook (all attempts, note timestamps):

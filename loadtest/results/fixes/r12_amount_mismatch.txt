@@ -1,0 +1,12 @@
+# R12 signed webhook whose amount differs from the intent @ 2026-10-28T18:10:22Z (local, single machine, PROVIDER_MODE=mock, commit 633fe7b)
+webhook (amount 999 vs intent 1050) -> HTTP 200
+ status | attempts |                       last_error                       
+--------+----------+--------------------------------------------------------
+ failed |        1 | amount mismatch for intent 4: webhook 999, intent 1050
+(1 row)
+
+   status   | ledger_rows 
+------------+-------------
+ processing |           0
+(1 row)
+

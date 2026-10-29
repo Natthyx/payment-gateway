@@ -1,0 +1,33 @@
+time="2026-10-29T10:27:32+03:00" level=warning msg="Insufficient VUs, reached 600 active VUs and cannot initialize more" executor=constant-arrival-rate scenario=curve
+test duration: 68.5 s
+data_received                                    count=994605 rate=14514.593
+data_sent                                        count=561422 rate=8193.013
+dropped_iterations                               count=4344 rate=63.393
+http_req_blocked                                 med=0.008 avg=0.129 p(90)=0.349 p(95)=0.438 p(99)=0.607 max=10.252 count=1656 min=0.001
+http_req_connecting                              med=0 avg=0.105 p(90)=0.291 p(95)=0.368 p(99)=0.51 max=9.879 count=1656 min=0
+http_req_duration                                p(95)=28020.839 p(99)=29247.441 max=30018.816 count=1656 min=1502.428 med=25205.186 avg=22070.735 p(90)=27457.196
+http_req_duration{expected_response:true}        avg=22070.735 p(90)=27457.196 p(95)=28020.839 p(99)=29247.441 max=30018.816 count=1656 min=1502.428 med=25205.186
+http_req_failed                                  rate=0 passes=0 fails=1656
+http_req_receiving                               p(99)=1.271 max=7.995 count=1656 min=0.019 med=0.084 avg=0.142 p(90)=0.195 p(95)=0.319
+http_req_sending                                 p(99)=0.102 max=1.76 count=1656 min=0.009 med=0.029 avg=0.035 p(90)=0.054 p(95)=0.064
+http_req_tls_handshaking                         med=0 avg=0 p(90)=0 p(95)=0 p(99)=0 max=0 count=1656 min=0
+http_req_waiting                                 avg=22070.558 p(90)=27457.054 p(95)=28020.783 p(99)=29247.347 max=30018.768 count=1656 min=1502.308 med=25204.201
+http_reqs                                        count=1656 rate=24.167
+iteration_duration                               max=30019.304 count=1656 min=1503.094 med=25208.341 avg=22071.401 p(90)=27460.601 p(95)=28021.159 p(99)=29248.212
+iterations                                       count=1656 rate=24.167
+status_0_no_response                             count=0 rate=0
+status_200                                       count=0 rate=0
+status_201                                       rate=24.167 count=1656
+status_204                                       count=0 rate=0
+status_400                                       rate=0 count=0
+status_401                                       count=0 rate=0
+status_404                                       count=0 rate=0
+status_409                                       count=0 rate=0
+status_429                                       count=0 rate=0
+status_500                                       rate=0 count=0
+status_502                                       count=0 rate=0
+status_503                                       count=0 rate=0
+status_504                                       rate=0 count=0
+status_other                                     rate=0 count=0
+vus                                              value=240 min=97 max=600
+vus_max                                          value=600 min=200 max=600

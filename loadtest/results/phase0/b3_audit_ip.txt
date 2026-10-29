@@ -1,0 +1,16 @@
+# B3 audit_log write for POST /merchants without X-Forwarded-For/X-Real-IP @ 2026-10-28T17:06:55Z (local, single machine, PROVIDER_MODE=mock, commit 4d69316)
+--- audit_log rows for action merchant.create:
+ count 
+-------
+     0
+(1 row)
+
+--- app log:
+{"level":"error","error":"ERROR: invalid input syntax for type inet: \"172.18.0.1:60522\" (SQLSTATE 22P02)","actor":"merchant:1","action":"merchant.create","time":1793207215,"message":"audit write failed"}
+--- same request WITH X-Real-IP header:
+HTTP 201
+     action      |    ip    
+-----------------+----------
+ merchant.create | 10.1.2.3
+(1 row)
+
